@@ -111,7 +111,7 @@ namespace TeslaAuth
                     formFields.Add(match.Groups[1].Value, match.Groups[2].Value);
                 }
 
-                IEnumerable<string> cookies = response.Headers.SingleOrDefault(header => header.Key == "Set-Cookie").Value;
+                IEnumerable<string> cookies = response.Headers.SingleOrDefault(header => header.Key.ToLowerInvariant() == "set-cookie").Value;
                 var cookie = cookies.ToList()[0];
                 cookie = cookie.Substring(0, cookie.IndexOf(" "));
                 cookie = cookie.Trim();
@@ -167,7 +167,7 @@ namespace TeslaAuth
 
                         if (!result.IsSuccessStatusCode)
                         {
-                            throw new Exception(result.ReasonPhrase);
+                            throw new Exception(String.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase);
                         }
                         Uri location = result.Headers.Location;
 
