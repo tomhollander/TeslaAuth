@@ -165,7 +165,7 @@ namespace TeslaAuth
                         HttpResponseMessage result = client.PostAsync(url, content).Result;
                         string resultContent = result.Content.ReadAsStringAsync().Result;
 
-                        if (!result.IsSuccessStatusCode)
+                        if (result.StatusCode != HttpStatusCode.Redirect && !result.IsSuccessStatusCode)
                         {
                             throw new Exception(result.ReasonPhrase);
                         }
