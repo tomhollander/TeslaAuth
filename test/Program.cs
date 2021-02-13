@@ -14,13 +14,13 @@ namespace test
             Console.Write("MFA: ");
             string mfaCode = Console.ReadLine();
             TeslaAccountRegion region = TeslaAccountRegion.Unknown;
-            var tokens = TeslaAuthHelper.Authenticate(username, password, mfaCode, region);
+            var tokens = TeslaAuthHelper.AuthenticateAsync(username, password, mfaCode, region).Result;
             Console.WriteLine("Access token: " + tokens.AccessToken);
             Console.WriteLine("Refresh token: " + tokens.RefreshToken);
             Console.WriteLine("Created at: " + tokens.CreatedAt);
             Console.WriteLine("Expires in: " + tokens.ExpiresIn);
 
-            var newToken = TeslaAuthHelper.RefreshToken(tokens.RefreshToken, region);
+            var newToken = TeslaAuthHelper.RefreshTokenAsync(tokens.RefreshToken, region).Result;
             Console.WriteLine("Refreshed Access token: " + newToken.AccessToken);
             Console.WriteLine("New Refresh token: " + newToken.RefreshToken);
             Console.WriteLine("Refreshed token created at: " + newToken.CreatedAt);

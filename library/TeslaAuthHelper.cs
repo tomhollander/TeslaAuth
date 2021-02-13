@@ -13,6 +13,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Web;
 using Newtonsoft.Json.Linq;
 
@@ -55,12 +56,12 @@ namespace TeslaAuth
         }
 
 
-        public static Tokens Authenticate(string username, string password, string mfaCode = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
+        public static async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
         {
-            var loginInfo = InitializeLogin(region);
-            var code = GetAuthorizationCode(username, password, mfaCode, loginInfo, region);
-            var tokens = ExchangeCodeForBearerToken(code, loginInfo, region);
-            var accessAndRefreshTokens = ExchangeAccessTokenForBearerToken(tokens.AccessToken);
+            var loginInfo = await InitializeLoginAsync(region);
+            var code = await GetAuthorizationCodeAsync(username, password, mfaCode, loginInfo, region);
+            var tokens = await ExchangeCodeForBearerTokenAsync(code, loginInfo, region);
+            var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken);
             return new Tokens {
                 AccessToken = accessAndRefreshTokens.AccessToken,
                 RefreshToken = tokens.RefreshToken,
@@ -70,7 +71,7 @@ namespace TeslaAuth
         }
 
 
-        private static LoginInfo InitializeLogin(TeslaAccountRegion region = TeslaAccountRegion.Unknown) 
+        private static async Task<LoginInfo> InitializeLoginAsync(TeslaAccountRegion region = TeslaAccountRegion.Unknown) 
         {
             var result = new LoginInfo();
 
@@ -97,8 +98,8 @@ namespace TeslaAuth
                 string url = b.ToString();
 
                     
-                HttpResponseMessage response = client.GetAsync(url).Result;
-                var resultContent = response.Content.ReadAsStringAsync().Result;
+                HttpResponseMessage response = await client.GetAsync(url);
+                var resultContent = await response.Content.ReadAsStringAsync();
 
                 var hiddenFields = Regex.Matches(resultContent, "type=\\\"hidden\\\" name=\\\"(.*?)\\\" value=\\\"(.*?)\\\"");
                 var formFields = new Dictionary<string, string>();
@@ -116,11 +117,10 @@ namespace TeslaAuth
                 result.FormFields = formFields;
                 
                 return result;
-  
             }            
         }
 
-        private static string GetAuthorizationCode(string username, string password, string mfaCode, LoginInfo loginInfo, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
+        private static async Task<string> GetAuthorizationCodeAsync(string username, string password, string mfaCode, LoginInfo loginInfo, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
         {
             var formFields = loginInfo.FormFields;
             formFields.Add("identity", username);
@@ -154,8 +154,8 @@ namespace TeslaAuth
 
                         //var temp = content.ReadAsStringAsync().Result;
 
-                        HttpResponseMessage result = client.PostAsync(url, content).Result;
-                        string resultContent = result.Content.ReadAsStringAsync().Result;
+                        HttpResponseMessage result = await client.PostAsync(url, content);
+                        string resultContent = await result.Content.ReadAsStringAsync();
 
                         if (result.StatusCode != HttpStatusCode.Redirect && !result.IsSuccessStatusCode)
                         {
@@ -172,7 +172,7 @@ namespace TeslaAuth
                                 {
                                     throw new Exception("Multi-factor code required to authenticate");
                                 }
-                                return GetAuthorizationCodeWithMfa(mfaCode, loginInfo, region);
+                                return await GetAuthorizationCodeWithMfaAsync(mfaCode, loginInfo, region);
 
                             }
                             else
@@ -194,7 +194,7 @@ namespace TeslaAuth
             throw new Exception("Authentication process failed");
         }
 
-        private static Tokens ExchangeCodeForBearerToken(string code, LoginInfo loginInfo, TeslaAccountRegion region/* = TeslaAccountRegion.Unknown*/)
+        private static async Task<Tokens> ExchangeCodeForBearerTokenAsync(string code, LoginInfo loginInfo, TeslaAccountRegion region/* = TeslaAccountRegion.Unknown*/)
         {
             var body = new JObject();
             body.Add("grant_type", "authorization_code");
@@ -209,8 +209,8 @@ namespace TeslaAuth
 
                 using (var content = new StringContent(body.ToString(), System.Text.Encoding.UTF8, "application/json"))
                 {
-                    HttpResponseMessage result = client.PostAsync(client.BaseAddress + "/oauth2/v3/token", content).Result;
-                    string resultContent = result.Content.ReadAsStringAsync().Result;
+                    HttpResponseMessage result = await client.PostAsync(client.BaseAddress + "/oauth2/v3/token", content);
+                    string resultContent = await result.Content.ReadAsStringAsync();
 
                     JObject response = JObject.Parse(resultContent);
                     
@@ -220,12 +220,11 @@ namespace TeslaAuth
                         RefreshToken = response["refresh_token"].Value<string>()
                     };
                     return tokens;
-
                 }
             }  
         }
 
-        private static Tokens ExchangeAccessTokenForBearerToken(string accessToken)
+        private static async Task<Tokens> ExchangeAccessTokenForBearerTokenAsync(string accessToken)
         {   
             var body = new JObject();
             body.Add("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
@@ -239,8 +238,8 @@ namespace TeslaAuth
 
                 using (var content = new StringContent(body.ToString(), System.Text.Encoding.UTF8, "application/json"))
                 {
-                    HttpResponseMessage result = client.PostAsync("https://owner-api.teslamotors.com/oauth/token", content).Result;
-                    string resultContent = result.Content.ReadAsStringAsync().Result;
+                    HttpResponseMessage result = await client.PostAsync("https://owner-api.teslamotors.com/oauth/token", content);
+                    string resultContent = await result.Content.ReadAsStringAsync();
 
                     JObject response = JObject.Parse(resultContent);
                     DateTime createdAt = ToDateTime(response["created_at"].Value<Int64>());
@@ -258,7 +257,7 @@ namespace TeslaAuth
             }
         }
 
-        public static Tokens RefreshToken(string refreshToken, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
+        public static async Task<Tokens> RefreshTokenAsync(string refreshToken, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
         {
             var body = new JObject();
             body.Add("grant_type", "refresh_token");
@@ -272,26 +271,26 @@ namespace TeslaAuth
 
                 using (var content = new StringContent(body.ToString(), System.Text.Encoding.UTF8, "application/json"))
                 {
-                    HttpResponseMessage result = client.PostAsync(GetBaseAddressForRegion(region) + "/oauth2/v3/token", content).Result;
-                    string resultContent = result.Content.ReadAsStringAsync().Result;
+                    HttpResponseMessage result = await client.PostAsync(GetBaseAddressForRegion(region) + "/oauth2/v3/token", content);
+                    string resultContent = await result.Content.ReadAsStringAsync();
 
                     JObject response = JObject.Parse(resultContent);
                     
                     string accessToken = response["access_token"].Value<String>();
-                    return ExchangeAccessTokenForBearerToken(accessToken);
+                    return await ExchangeAccessTokenForBearerTokenAsync(accessToken);
                 }
             }
         }
 
-        private static string GetAuthorizationCodeWithMfa(string mfaCode, LoginInfo loginInfo, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
+        private static async Task<string> GetAuthorizationCodeWithMfaAsync(string mfaCode, LoginInfo loginInfo, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
         {
-            string mfaFactorId = GetMfaFactorId(loginInfo, region);
-            VerifyMfaCode(mfaCode, loginInfo, mfaFactorId, region);
-            var code = GetCodeAfterValidMfa(loginInfo, region);
+            string mfaFactorId = await GetMfaFactorIdAsync(loginInfo, region);
+            await VerifyMfaCodeAsync(mfaCode, loginInfo, mfaFactorId, region);
+            var code = await GetCodeAfterValidMfaAsync(loginInfo, region);
             return code;
         }
 
-        private static string GetMfaFactorId(LoginInfo loginInfo, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
+        private static async Task<string> GetMfaFactorIdAsync(LoginInfo loginInfo, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
         {
             string resultContent;
             using (HttpClientHandler ch = new HttpClientHandler())
@@ -309,8 +308,8 @@ namespace TeslaAuth
                     b.Query = q.ToString();
                     string url = b.ToString();
 
-                    HttpResponseMessage result = client.GetAsync(url).Result;
-                    resultContent = result.Content.ReadAsStringAsync().Result;
+                    HttpResponseMessage result = await client.GetAsync(url);
+                    resultContent = await result.Content.ReadAsStringAsync();
 
                     var response = JObject.Parse(resultContent);
   
@@ -319,7 +318,7 @@ namespace TeslaAuth
             }
         }
 
-        private static void VerifyMfaCode(string mfaCode, LoginInfo loginInfo, string factorId, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
+        private static async Task VerifyMfaCodeAsync(string mfaCode, LoginInfo loginInfo, string factorId, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
         {
             using (HttpClientHandler ch = new HttpClientHandler())
             {
@@ -338,8 +337,8 @@ namespace TeslaAuth
 
                     using (var content = new StringContent(body.ToString(), System.Text.Encoding.UTF8, "application/json"))
                     {
-                        HttpResponseMessage result = client.PostAsync(client.BaseAddress + "/oauth2/v3/authorize/mfa/verify", content).Result;
-                        string resultContent = result.Content.ReadAsStringAsync().Result;
+                        HttpResponseMessage result = await client.PostAsync(client.BaseAddress + "/oauth2/v3/authorize/mfa/verify", content);
+                        string resultContent = await result.Content.ReadAsStringAsync();
 
                         var response = JObject.Parse(resultContent);
                         bool valid = response["data"]["valid"].Value<bool>();
@@ -352,7 +351,7 @@ namespace TeslaAuth
             }
         }
 
-        private static string GetCodeAfterValidMfa(LoginInfo loginInfo, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
+        private static async Task<string> GetCodeAfterValidMfaAsync(LoginInfo loginInfo, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
         {
             using (HttpClientHandler ch = new HttpClientHandler())
             {
@@ -384,8 +383,8 @@ namespace TeslaAuth
 
                         var temp = content.ReadAsStringAsync().Result;
 
-                        HttpResponseMessage result = client.PostAsync(url, content).Result;
-                        string resultContent = result.Content.ReadAsStringAsync().Result;
+                        HttpResponseMessage result = await client.PostAsync(url, content);
+                        string resultContent = await result.Content.ReadAsStringAsync();
 
                         Uri location = result.Headers.Location;
 
