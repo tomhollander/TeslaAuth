@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -139,7 +140,7 @@ namespace TeslaAuth
 
                     using (FormUrlEncodedContent content = new FormUrlEncodedContent(formFields))
                     {
-                        UriBuilder b = new UriBuilder(client.BaseAddress + "/oauth2/v3/authorize");
+                        UriBuilder b = new UriBuilder(client.BaseAddress + "oauth2/v3/authorize");
                         b.Port = -1;
                         var q = HttpUtility.ParseQueryString(b.Query);
                         q["client_id"] = "ownerapi";
@@ -152,7 +153,7 @@ namespace TeslaAuth
                         b.Query = q.ToString();
                         string url = b.ToString();
 
-                        //var temp = content.ReadAsStringAsync().Result;
+                        var temp = content.ReadAsStringAsync().Result;
 
                         HttpResponseMessage result = await client.PostAsync(url, content);
                         string resultContent = await result.Content.ReadAsStringAsync();
@@ -199,17 +200,24 @@ namespace TeslaAuth
             var body = new JObject();
             body.Add("grant_type", "authorization_code");
             body.Add("client_id", "ownerapi");
-            body.Add("code", code);
+            body.Add("code", code );
             body.Add("code_verifier", loginInfo.CodeVerifier);
             body.Add("redirect_uri", "https://auth.tesla.com/void/callback");
 
-            using (HttpClient client = new HttpClient())
+            HttpClientHandler handler = new HttpClientHandler()
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            };
+
+            using (HttpClient client = new HttpClient(handler))
             {
                 client.BaseAddress = new Uri(GetBaseAddressForRegion(region));
+                client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                client.DefaultRequestHeaders.Connection.Add("keep-alive");
 
-                using (var content = new StringContent(body.ToString(), System.Text.Encoding.UTF8, "application/json"))
+                using (var content = new StringContent(body.ToString(Newtonsoft.Json.Formatting.None), System.Text.Encoding.UTF8, "application/json"))
                 {
-                    HttpResponseMessage result = await client.PostAsync(client.BaseAddress + "/oauth2/v3/token", content);
+                    HttpResponseMessage result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content);
                     string resultContent = await result.Content.ReadAsStringAsync();
 
                     JObject response = JObject.Parse(resultContent);
@@ -265,9 +273,16 @@ namespace TeslaAuth
             body.Add("refresh_token", refreshToken);
             body.Add("scope", "openid email offline_access");
 
-            using (HttpClient client = new HttpClient())
+            var handler = new HttpClientHandler()
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            };
+
+            using (HttpClient client = new HttpClient(handler))
             {
                 client.Timeout = TimeSpan.FromSeconds(5);
+                client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                client.DefaultRequestHeaders.Connection.Add("keep-alive");
 
                 using (var content = new StringContent(body.ToString(), System.Text.Encoding.UTF8, "application/json"))
                 {
@@ -299,6 +314,7 @@ namespace TeslaAuth
                 using (HttpClient client = new HttpClient(ch))
                 {
                     client.DefaultRequestHeaders.Add("Cookie", loginInfo.Cookie);
+                    client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
                     
                     UriBuilder b = new UriBuilder(GetBaseAddressForRegion(region) + "/oauth2/v3/authorize/mfa/factors");
                     b.Port = -1;
@@ -328,6 +344,8 @@ namespace TeslaAuth
                 {
                     client.BaseAddress = new Uri(GetBaseAddressForRegion(region));
                     client.DefaultRequestHeaders.Add("Cookie", loginInfo.Cookie);
+                    client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                    client.DefaultRequestHeaders.Referrer = new Uri("https://auth.tesla.com");
 
                     var body = new JObject();
                     body.Add("factor_id", factorId);
@@ -337,7 +355,7 @@ namespace TeslaAuth
 
                     using (var content = new StringContent(body.ToString(), System.Text.Encoding.UTF8, "application/json"))
                     {
-                        HttpResponseMessage result = await client.PostAsync(client.BaseAddress + "/oauth2/v3/authorize/mfa/verify", content);
+                        HttpResponseMessage result = await client.PostAsync(client.BaseAddress + "oauth2/v3/authorize/mfa/verify", content);
                         string resultContent = await result.Content.ReadAsStringAsync();
 
                         var response = JObject.Parse(resultContent);
@@ -368,7 +386,7 @@ namespace TeslaAuth
 
                     using (FormUrlEncodedContent content = new FormUrlEncodedContent(d))
                     {
-                        UriBuilder b = new UriBuilder(client.BaseAddress + "/oauth2/v3/authorize");
+                        UriBuilder b = new UriBuilder(client.BaseAddress + "oauth2/v3/authorize");
                         b.Port = -1;
                         var q = HttpUtility.ParseQueryString(b.Query);
                         q.Add("client_id", "ownerapi");
