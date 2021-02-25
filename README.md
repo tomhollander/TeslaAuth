@@ -12,12 +12,12 @@ Thanks also to [Tim Dorr](https://github.com/timdorr) for his work in documentin
 
 Usage example is in the `test.csproj` project, but it's basically just this:
 
-```
+```c#
 // When it's time to authenticate:
-var tokens = TeslaAuthHelper.Authenticate(username, password, mfaCode);
+var tokens = TeslaAuthHelper.AuthenticateAsync(username, password, mfaCode);
 Console.WriteLine("Access token: " + tokens.AccessToken);
 Console.WriteLine("Refresh token: " + tokens.RefreshToken);
 
 // When it's time to refresh:
-var newToken = TeslaAuthHelper.RefreshToken(tokens.RefreshToken);
+var newToken = TeslaAuthHelper.RefreshTokenAsync(tokens.RefreshToken);
 ```
