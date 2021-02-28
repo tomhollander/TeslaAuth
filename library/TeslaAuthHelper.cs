@@ -28,7 +28,7 @@ namespace TeslaAuth
         private static readonly Random random = new Random();
         public static string RandomString(int length)
         {
-            const string chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+            const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             lock (random)
             {
                 return new string(Enumerable.Repeat(chars, length)
