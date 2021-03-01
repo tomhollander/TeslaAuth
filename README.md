@@ -20,5 +20,5 @@ Console.WriteLine("Access token: " + tokens.AccessToken);
 Console.WriteLine("Refresh token: " + tokens.RefreshToken);
 
 // When it's time to refresh:
-var newToken = TeslaAuthHelper.RefreshTokenAsync(tokens.RefreshToken);
+var newToken = await authHelper.RefreshTokenAsync(tokens.RefreshToken);
 ```
