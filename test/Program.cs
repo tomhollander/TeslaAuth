@@ -14,13 +14,15 @@ class Program
             : await RL("MFA");
 
         TeslaAccountRegion region = TeslaAccountRegion.Unknown;
-        var tokens = await TeslaAuthHelper.AuthenticateAsync(username, password, mfaCode, region);
+        
+        var authHelper = new TeslaAuthHelper("TeslaAuthHelperTest/1.0");
+        var tokens = await authHelper.AuthenticateAsync(username, password, mfaCode, region);
         Console.WriteLine("Access token: " + tokens.AccessToken);
         Console.WriteLine("Refresh token: " + tokens.RefreshToken);
         Console.WriteLine("Created at: " + tokens.CreatedAt);
         Console.WriteLine("Expires in: " + tokens.ExpiresIn);
 
-        var newToken = await TeslaAuthHelper.RefreshTokenAsync(tokens.RefreshToken, region);
+        var newToken = await authHelper.RefreshTokenAsync(tokens.RefreshToken, region);
         Console.WriteLine("Refreshed Access token: " + newToken.AccessToken);
         Console.WriteLine("New Refresh token: " + newToken.RefreshToken);
         Console.WriteLine("Refreshed token created at: " + newToken.CreatedAt);
