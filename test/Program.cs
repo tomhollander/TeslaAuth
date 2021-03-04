@@ -1,30 +1,37 @@
 ﻿using System;
+using System.Threading.Tasks;
+using OtpNet;
 using TeslaAuth;
 
-namespace test
+class Program
 {
-    class Program
+    static async Task Main()
     {
-        static void Main(string[] args)
-        {
-            Console.Write("Username: ");
-            string username = Console.ReadLine();
-            Console.Write("Password: ");
-            string password = Console.ReadLine();
-            Console.Write("MFA: ");
-            string mfaCode = Console.ReadLine();
-            TeslaAccountRegion region = TeslaAccountRegion.Unknown;
-            var tokens = TeslaAuthHelper.AuthenticateAsync(username, password, mfaCode, region).Result;
-            Console.WriteLine("Access token: " + tokens.AccessToken);
-            Console.WriteLine("Refresh token: " + tokens.RefreshToken);
-            Console.WriteLine("Created at: " + tokens.CreatedAt);
-            Console.WriteLine("Expires in: " + tokens.ExpiresIn);
+        string username = Environment.GetEnvironmentVariable("TESLA_USERNAME") ?? await RL("Username");
+        string password = Environment.GetEnvironmentVariable("TESLA_PW") ?? await RL("Password");
+        string mfaCode = (mfaCode = Environment.GetEnvironmentVariable("TESLA_KEY")) != null
+            ? new OtpNet.Totp(Base32Encoding.ToBytes(mfaCode)).ComputeTotp()
+            : await RL("MFA");
 
-            var newToken = TeslaAuthHelper.RefreshTokenAsync(tokens.RefreshToken, region).Result;
-            Console.WriteLine("Refreshed Access token: " + newToken.AccessToken);
-            Console.WriteLine("New Refresh token: " + newToken.RefreshToken);
-            Console.WriteLine("Refreshed token created at: " + newToken.CreatedAt);
-            Console.WriteLine("Refreshed token expires in: " + newToken.ExpiresIn);
-        }
+        TeslaAccountRegion region = TeslaAccountRegion.Unknown;
+        
+        var authHelper = new TeslaAuthHelper("TeslaAuthHelperTest/1.0");
+        var tokens = await authHelper.AuthenticateAsync(username, password, mfaCode, region);
+        Console.WriteLine("Access token: " + tokens.AccessToken);
+        Console.WriteLine("Refresh token: " + tokens.RefreshToken);
+        Console.WriteLine("Created at: " + tokens.CreatedAt);
+        Console.WriteLine("Expires in: " + tokens.ExpiresIn);
+
+        var newToken = await authHelper.RefreshTokenAsync(tokens.RefreshToken, region);
+        Console.WriteLine("Refreshed Access token: " + newToken.AccessToken);
+        Console.WriteLine("New Refresh token: " + newToken.RefreshToken);
+        Console.WriteLine("Refreshed token created at: " + newToken.CreatedAt);
+        Console.WriteLine("Refreshed token expires in: " + newToken.ExpiresIn);
+    }
+
+    static async Task<string> RL(string label)
+    {
+        await Console.Out.WriteLineAsync($"{label}: ");
+        return Console.ReadLine();
     }
 }

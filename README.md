@@ -8,16 +8,17 @@ This code is heavily based on [Christian P](https://github.com/bassmaster187)'s
 work in the [TeslaLogger](https://github.com/bassmaster187/TeslaLogger) tool.
 My changes were largely to make it reusable.
 
-Thanks also to [Tim Dorr](https://github.com/timdorr) for his work in documenting the [new API](https://tesla-api.timdorr.com/api-basics/authentication).
+Thanks also to [Tim Dorr](https://github.com/timdorr) for his work in documenting the [new API](https://tesla-api.timdorr.com/api-basics/authentication), and [Ramon Smits](https://github.com/ramonsmits) for his contributions to this library.
 
 Usage example is in the `test.csproj` project, but it's basically just this:
 
 ```c#
 // When it's time to authenticate:
-var tokens = TeslaAuthHelper.AuthenticateAsync(username, password, mfaCode);
+var authHelper = new TeslaAuthHelper("YourUserAgent/1.0");
+var tokens = await authHelper.AuthenticateAsync(username, password, mfaCode);
 Console.WriteLine("Access token: " + tokens.AccessToken);
 Console.WriteLine("Refresh token: " + tokens.RefreshToken);
 
 // When it's time to refresh:
-var newToken = TeslaAuthHelper.RefreshTokenAsync(tokens.RefreshToken);
+var newToken = await authHelper.RefreshTokenAsync(tokens.RefreshToken);
 ```
