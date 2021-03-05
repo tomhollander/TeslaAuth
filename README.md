@@ -10,6 +10,16 @@ My changes were largely to make it reusable.
 
 Thanks also to [Tim Dorr](https://github.com/timdorr) for his work in documenting the [new API](https://tesla-api.timdorr.com/api-basics/authentication), and [Ramon Smits](https://github.com/ramonsmits) for his contributions to this library.
 
+## Install
+
+The package is available via [NuGet](https://www.nuget.org/) with the package name [TeslaAuth](https://www.nuget.org/packages/TeslaAuth).
+
+```ps1
+Install-Package TeslaAuth
+```
+
+## Example
+
 Usage example is in the `test.csproj` project, but it's basically just this:
 
 ```c#
