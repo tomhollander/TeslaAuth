@@ -284,13 +284,12 @@ namespace TeslaAuth
 
         async Task<string> GetAuthorizationCodeWithMfaAsync(string mfaCode, LoginInfo loginInfo, HttpClient client)
         {
-            var mfaFactorId = await GetMfaFactorIdAsync(loginInfo, client);
-            await VerifyMfaCodeAsync(mfaCode, loginInfo, mfaFactorId, client);
+            var mfaFactorId = await GetMfaFactorIdAsync(mfaCode, loginInfo, client);
             var code = await GetCodeAfterValidMfaAsync(loginInfo, client);
             return code;
         }
 
-        async Task<string> GetMfaFactorIdAsync(LoginInfo loginInfo, HttpClient client)
+        async Task<string> GetMfaFactorIdAsync(string mfaCode, LoginInfo loginInfo, HttpClient client)
         {
             var b = new UriBuilder(client.BaseAddress + "/oauth2/v3/authorize/mfa/factors") {Port = -1};
 
@@ -304,10 +303,20 @@ namespace TeslaAuth
 
             var response = JObject.Parse(resultContent);
 
-            return response["data"]![0]!["id"]!.Value<string>();
+            for (var i = 0; i < response["data"]!.Count(); i++)
+            {
+                var mfaFactorId = response["data"]![i]!["id"]!.Value<string>();
+
+                if (await VerifyMfaCodeAsync(mfaCode, loginInfo, mfaFactorId, client))
+                {
+                    return mfaFactorId;
+                }
+            }
+
+            throw new Exception("MFA code not matching on registered devices."); 
         }
 
-        async Task VerifyMfaCodeAsync(string mfaCode, LoginInfo loginInfo, string factorId, HttpClient client)
+        async Task<bool> VerifyMfaCodeAsync(string mfaCode, LoginInfo loginInfo, string factorId, HttpClient client)
         {
             var body = new JObject
             {
@@ -330,10 +339,7 @@ namespace TeslaAuth
 
             var response = JObject.Parse(resultContent);
             bool valid = response["data"]!["valid"]!.Value<bool>();
-            if (!valid)
-            {
-                throw new Exception("MFA code invalid");
-            }
+            return valid;
         }
 
         async Task<string> GetCodeAfterValidMfaAsync(LoginInfo loginInfo, HttpClient client)
