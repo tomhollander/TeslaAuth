@@ -79,9 +79,9 @@ namespace TeslaAuth
                 BaseAddress = new Uri(GetBaseAddressForRegion(region)),
                 DefaultRequestHeaders =
                 {
-                    Connection = { "keep-alive" },
+                    ConnectionClose = false,
                     Accept = { new MediaTypeWithQualityHeaderValue("application/json") },
-                    UserAgent = {ProductInfoHeaderValue.Parse(UserAgent) }
+                    UserAgent = {ProductInfoHeaderValue.Parse(UserAgent) },
                 }
             };
 
