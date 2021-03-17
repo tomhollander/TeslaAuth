@@ -7,7 +7,7 @@
 
   <PropertyGroup>
     <FileVersion>1.0.0</FileVersion>
-    <Version>$(FileVersion)-preview.1</Version>
+    <Version>$(FileVersion)-preview.2</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <PackageVersion>$(Version)</PackageVersion>
     <PackageId>TeslaAuth</PackageId>
