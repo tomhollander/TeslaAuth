@@ -15,6 +15,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using Newtonsoft.Json.Linq;
@@ -79,23 +80,24 @@ namespace TeslaAuth
                 BaseAddress = new Uri(GetBaseAddressForRegion(region)),
                 DefaultRequestHeaders =
                 {
-                    Connection = { "keep-alive" },
+                    ConnectionClose = false,
                     Accept = { new MediaTypeWithQualityHeaderValue("application/json") },
-                    UserAgent = {ProductInfoHeaderValue.Parse(UserAgent) }
                 }
             };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
 
             return client;
         }
         
-        public async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
+        public async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown, CancellationToken cancellationToken = default)
         {
+            
             var client = clients.GetOrAdd(region, CreateHttpClient);
 
-            var loginInfo = await InitializeLoginAsync(client);
-            var code = await GetAuthorizationCodeAsync(username, password, mfaCode, loginInfo, client);
-            var tokens = await ExchangeCodeForBearerTokenAsync(code, loginInfo, client);
-            var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client);
+            var loginInfo = await InitializeLoginAsync(client, cancellationToken);
+            var code = await GetAuthorizationCodeAsync(username, password, mfaCode, loginInfo, client, cancellationToken);
+            var tokens = await ExchangeCodeForBearerTokenAsync(code, loginInfo, client, cancellationToken);
+            var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client, cancellationToken);
             return new Tokens
             {
                 AccessToken = accessAndRefreshTokens.AccessToken,
@@ -105,7 +107,7 @@ namespace TeslaAuth
             };
         }
 
-        async Task<LoginInfo> InitializeLoginAsync(HttpClient client)
+        async Task<LoginInfo> InitializeLoginAsync(HttpClient client, CancellationToken cancellationToken)
         {
             var result = new LoginInfo
             {
@@ -129,7 +131,7 @@ namespace TeslaAuth
             b.Query = q.ToString();
             string url = b.ToString();
 
-            using var response = await client.GetAsync(url);
+            using var response = await client.GetAsync(url, cancellationToken);
             var resultContent = await response.Content.ReadAsStringAsync();
 
             var hiddenFields = Regex.Matches(resultContent, "type=\\\"hidden\\\" name=\\\"(.*?)\\\" value=\\\"(.*?)\\\"");
@@ -144,7 +146,7 @@ namespace TeslaAuth
             return result;
         }
 
-        async Task<string> GetAuthorizationCodeAsync(string username, string password, string mfaCode, LoginInfo loginInfo, HttpClient client)
+        async Task<string> GetAuthorizationCodeAsync(string username, string password, string mfaCode, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
         {
             var formFields = loginInfo.FormFields;
             formFields.Add("identity", username);
@@ -164,7 +166,7 @@ namespace TeslaAuth
             b.Query = q.ToString();
             string url = b.ToString();
 
-            using var result = await client.PostAsync(url, content);
+            using var result = await client.PostAsync(url, content, cancellationToken);
             string resultContent = await result.Content.ReadAsStringAsync();
 
             if (result.StatusCode != HttpStatusCode.Redirect && !result.IsSuccessStatusCode)
@@ -183,7 +185,7 @@ namespace TeslaAuth
                         throw new Exception("Multi-factor code required to authenticate");
                     }
 
-                    return await GetAuthorizationCodeWithMfaAsync(mfaCode, loginInfo, client);
+                    return await GetAuthorizationCodeWithMfaAsync(mfaCode, loginInfo, client, cancellationToken);
                 }
                 else
                 {
@@ -202,7 +204,7 @@ namespace TeslaAuth
             return code;
         }
 
-        async Task<Tokens> ExchangeCodeForBearerTokenAsync(string code, LoginInfo loginInfo, HttpClient client)
+        async Task<Tokens> ExchangeCodeForBearerTokenAsync(string code, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
         {
             var body = new JObject
             {
@@ -214,7 +216,7 @@ namespace TeslaAuth
             };
 
             using var content = new StringContent(body.ToString(Newtonsoft.Json.Formatting.None), Encoding.UTF8, "application/json");
-            using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content);
+            using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content, cancellationToken);
             string resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
 
@@ -226,7 +228,7 @@ namespace TeslaAuth
             return tokens;
         }
 
-        async Task<Tokens> ExchangeAccessTokenForBearerTokenAsync(string accessToken, HttpClient client)
+        async Task<Tokens> ExchangeAccessTokenForBearerTokenAsync(string accessToken, HttpClient client, CancellationToken cancellationToken)
         {
             var body = new JObject
             {
@@ -243,7 +245,7 @@ namespace TeslaAuth
                 Headers = { Authorization = new AuthenticationHeaderValue("Bearer", accessToken) }
             };
             
-            using var result = await client.SendAsync(request);
+            using var result = await client.SendAsync(request, cancellationToken);
             
             string resultContent = await result.Content.ReadAsStringAsync();
 
@@ -262,7 +264,7 @@ namespace TeslaAuth
             };
         }
 
-        public async Task<Tokens> RefreshTokenAsync(string refreshToken, TeslaAccountRegion region)
+        public async Task<Tokens> RefreshTokenAsync(string refreshToken, TeslaAccountRegion region, CancellationToken cancellationToken = default)
         {
             var client = clients.GetOrAdd(region, CreateHttpClient);
 
@@ -275,22 +277,21 @@ namespace TeslaAuth
             };
 
             using var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
-            using var result = await client.PostAsync("oauth2/v3/token", content);
+            using var result = await client.PostAsync("oauth2/v3/token", content, cancellationToken);
             var resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
             var accessToken = response["access_token"]!.Value<string>();
-            return await ExchangeAccessTokenForBearerTokenAsync(accessToken, client);
+            return await ExchangeAccessTokenForBearerTokenAsync(accessToken, client, cancellationToken);
         }
 
-        async Task<string> GetAuthorizationCodeWithMfaAsync(string mfaCode, LoginInfo loginInfo, HttpClient client)
+        async Task<string> GetAuthorizationCodeWithMfaAsync(string mfaCode, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
         {
-            var mfaFactorId = await GetMfaFactorIdAsync(loginInfo, client);
-            await VerifyMfaCodeAsync(mfaCode, loginInfo, mfaFactorId, client);
-            var code = await GetCodeAfterValidMfaAsync(loginInfo, client);
+            var mfaFactorId = await GetMfaFactorIdAsync(mfaCode, loginInfo, client, cancellationToken);
+            var code = await GetCodeAfterValidMfaAsync(loginInfo, client, cancellationToken);
             return code;
         }
 
-        async Task<string> GetMfaFactorIdAsync(LoginInfo loginInfo, HttpClient client)
+        async Task<string> GetMfaFactorIdAsync(string mfaCode, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
         {
             var b = new UriBuilder(client.BaseAddress + "/oauth2/v3/authorize/mfa/factors") {Port = -1};
 
@@ -299,15 +300,25 @@ namespace TeslaAuth
             b.Query = q.ToString();
             string url = b.ToString();
 
-            using var  result = await client.GetAsync(url);
+            using var  result = await client.GetAsync(url, cancellationToken);
             var resultContent = await result.Content.ReadAsStringAsync();
 
             var response = JObject.Parse(resultContent);
 
-            return response["data"]![0]!["id"]!.Value<string>();
+            for (var i = 0; i < response["data"]!.Count(); i++)
+            {
+                var mfaFactorId = response["data"]![i]!["id"]!.Value<string>();
+
+                if (await VerifyMfaCodeAsync(mfaCode, loginInfo, mfaFactorId, client, cancellationToken))
+                {
+                    return mfaFactorId;
+                }
+            }
+
+            throw new Exception("MFA code not matching on registered devices."); 
         }
 
-        async Task VerifyMfaCodeAsync(string mfaCode, LoginInfo loginInfo, string factorId, HttpClient client)
+        async Task<bool> VerifyMfaCodeAsync(string mfaCode, LoginInfo loginInfo, string factorId, HttpClient client, CancellationToken cancellationToken)
         {
             var body = new JObject
             {
@@ -324,19 +335,16 @@ namespace TeslaAuth
                 Content = content,
             };
 
-            using var result = await client.SendAsync(request);
+            using var result = await client.SendAsync(request, cancellationToken);
             
             string resultContent = await result.Content.ReadAsStringAsync();
 
             var response = JObject.Parse(resultContent);
             bool valid = response["data"]!["valid"]!.Value<bool>();
-            if (!valid)
-            {
-                throw new Exception("MFA code invalid");
-            }
+            return valid;
         }
 
-        async Task<string> GetCodeAfterValidMfaAsync(LoginInfo loginInfo, HttpClient client)
+        async Task<string> GetCodeAfterValidMfaAsync(LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
         {
             var d = new Dictionary<string, string> {{"transaction_id", loginInfo.FormFields["transaction_id"]}};
 
@@ -354,7 +362,7 @@ namespace TeslaAuth
             b.Query = q.ToString();
             var url = b.ToString();
 
-            using var result = await client.PostAsync(url, content);
+            using var result = await client.PostAsync(url, content, cancellationToken);
 
             var location = result.Headers.Location;
 
