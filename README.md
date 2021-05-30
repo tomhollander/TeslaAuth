@@ -20,15 +20,17 @@ Install-Package TeslaAuth
 
 ## Example
 
-Usage example is in the `test.csproj` project, but it's basically just this:
+Since Tesla incorporated a CAPTCHA on their login page, it is no longer possible to authenticate using your own UI. Instead, you must use an integrated browser to
+show the Tesla login page and process the result.
 
-```c#
-// When it's time to authenticate:
-var authHelper = new TeslaAuthHelper("YourUserAgent/1.0");
-var tokens = await authHelper.AuthenticateAsync(username, password, mfaCode);
-Console.WriteLine("Access token: " + tokens.AccessToken);
-Console.WriteLine("Refresh token: " + tokens.RefreshToken);
+The `Test.WPF` project demonstrates a complete login and refresh flow. The sample only runs on Windows, but the library itself is cross platform (e.g. works on Xamarin).
 
-// When it's time to refresh:
-var newToken = await authHelper.RefreshTokenAsync(tokens.RefreshToken);
-```
+The steps to use this library are as follows:
+
+1. Initialise a `TeslaAuthHelper` instance
+2. Call `authHelper.GetLoginUrlForBrowser()` to generate the login URL
+3. Show the returned URL in your app's integrated browser
+4. Monitor the browser until you see a request for a URL containing the string `"void/callback"`
+5. Grab the entire URL (it contains a query string) and pass it to `authHelper.GetTokenAfterLoginAsync()`
+6. This will return a `Tokens` object containing an Access and Refresh token
+7. When the token expires, call `authHelper.RefreshTokenAsync()` to get a new one without needing a complete login flow.

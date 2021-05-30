@@ -29,7 +29,8 @@ namespace TeslaAuth
         static readonly Random Random = new Random();
         readonly ConcurrentDictionary<TeslaAccountRegion, HttpClient> clients = new ConcurrentDictionary<TeslaAccountRegion, HttpClient>();
         readonly string UserAgent;
-
+        readonly LoginInfo loginInfo;
+        readonly HttpClient client;
         static string RandomString(int length)
         {
             const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -60,9 +61,16 @@ namespace TeslaAuth
             return result.ToString();
         }
 
-        public TeslaAuthHelper(string userAgent)
+
+        public TeslaAuthHelper(string userAgent, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
         {
             UserAgent = userAgent;
+            loginInfo = new LoginInfo
+            {
+                CodeVerifier = RandomString(86),
+                State = RandomString(20)
+            };
+            client = CreateHttpClient(region);
         }
 
         HttpClient CreateHttpClient(TeslaAccountRegion region)
@@ -88,14 +96,33 @@ namespace TeslaAuth
 
             return client;
         }
-        
-        public async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown, CancellationToken cancellationToken = default)
-        {
-            
-            var client = clients.GetOrAdd(region, CreateHttpClient);
 
-            var loginInfo = await InitializeLoginAsync(client, cancellationToken);
-            var code = await GetAuthorizationCodeAsync(username, password, mfaCode, loginInfo, client, cancellationToken);
+        public string GetLoginUrlForBrowser()
+        {
+            var code_challenge_SHA256 = ComputeSHA256Hash(loginInfo.CodeVerifier);
+            loginInfo.CodeChallenge = Convert.ToBase64String(Encoding.Default.GetBytes(code_challenge_SHA256));
+
+            var b = new UriBuilder(client.BaseAddress + "/oauth2/v3/authorize") { Port = -1 };
+
+            var q = HttpUtility.ParseQueryString(b.Query);
+            q["client_id"] = "ownerapi";
+            q["code_challenge"] = loginInfo.CodeChallenge;
+            q["code_challenge_method"] = "S256";
+            q["redirect_uri"] = "https://auth.tesla.com/void/callback";
+            q["response_type"] = "code";
+            q["scope"] = "openid email offline_access";
+            q["state"] = loginInfo.State;
+            b.Query = q.ToString();
+            return b.ToString();
+        }
+
+        public async Task<Tokens> GetTokenAfterLoginAsync(string redirectUrl, CancellationToken cancellationToken = default)
+        {
+            // URL is something like https://auth.tesla.com/void/callback?code=b6a6a44dea889eb08cd8afe5adc16353662cc5d82ba0c6044c95b13d6f…"
+            var b = new UriBuilder(redirectUrl);
+            var q = HttpUtility.ParseQueryString(b.Query);
+            var code = q["code"];
+
             var tokens = await ExchangeCodeForBearerTokenAsync(code, loginInfo, client, cancellationToken);
             var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client, cancellationToken);
             return new Tokens
@@ -106,104 +133,7 @@ namespace TeslaAuth
                 ExpiresIn = accessAndRefreshTokens.ExpiresIn
             };
         }
-
-        async Task<LoginInfo> InitializeLoginAsync(HttpClient client, CancellationToken cancellationToken)
-        {
-            var result = new LoginInfo
-            {
-                CodeVerifier = RandomString(86),
-                State = RandomString(20)
-            };
-
-            var code_challenge_SHA256 = ComputeSHA256Hash(result.CodeVerifier);
-            result.CodeChallenge = Convert.ToBase64String(Encoding.Default.GetBytes(code_challenge_SHA256));
-
-            var b = new UriBuilder(client.BaseAddress + "/oauth2/v3/authorize") {Port = -1};
-
-            var q = HttpUtility.ParseQueryString(b.Query);
-            q["client_id"] = "ownerapi";
-            q["code_challenge"] = result.CodeChallenge;
-            q["code_challenge_method"] = "S256";
-            q["redirect_uri"] = "https://auth.tesla.com/void/callback";
-            q["response_type"] = "code";
-            q["scope"] = "openid email offline_access";
-            q["state"] = result.State;
-            b.Query = q.ToString();
-            string url = b.ToString();
-
-            using var response = await client.GetAsync(url, cancellationToken);
-            var resultContent = await response.Content.ReadAsStringAsync();
-
-            var hiddenFields = Regex.Matches(resultContent, "type=\\\"hidden\\\" name=\\\"(.*?)\\\" value=\\\"(.*?)\\\"");
-            var formFields = new Dictionary<string, string>();
-            foreach (Match match in hiddenFields)
-            {
-                formFields.Add(match.Groups[1].Value, match.Groups[2].Value);
-            }
-
-            result.FormFields = formFields;
-
-            return result;
-        }
-
-        async Task<string> GetAuthorizationCodeAsync(string username, string password, string mfaCode, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
-        {
-            var formFields = loginInfo.FormFields;
-            formFields.Add("identity", username);
-            formFields.Add("credential", password);
-
-            using var content = new FormUrlEncodedContent(formFields);
-
-            var b = new UriBuilder(client.BaseAddress + "oauth2/v3/authorize") {Port = -1};
-            var q = HttpUtility.ParseQueryString(b.Query);
-            q["client_id"] = "ownerapi";
-            q["code_challenge"] = loginInfo.CodeChallenge;
-            q["code_challenge_method"] = "S256";
-            q["redirect_uri"] = "https://auth.tesla.com/void/callback";
-            q["response_type"] = "code";
-            q["scope"] = "openid email offline_access";
-            q["state"] = loginInfo.State;
-            b.Query = q.ToString();
-            string url = b.ToString();
-
-            using var result = await client.PostAsync(url, content, cancellationToken);
-            string resultContent = await result.Content.ReadAsStringAsync();
-
-            if (result.StatusCode != HttpStatusCode.Redirect && !result.IsSuccessStatusCode)
-            {
-                throw new Exception(string.IsNullOrEmpty(result.ReasonPhrase)
-                    ? result.StatusCode.ToString()
-                    : result.ReasonPhrase);
-            }
-
-            if (result.StatusCode != HttpStatusCode.Redirect)
-            {
-                if (result.StatusCode == HttpStatusCode.OK && resultContent.Contains("passcode"))
-                {
-                    if (string.IsNullOrEmpty(mfaCode))
-                    {
-                        throw new Exception("Multi-factor code required to authenticate");
-                    }
-
-                    return await GetAuthorizationCodeWithMfaAsync(mfaCode, loginInfo, client, cancellationToken);
-                }
-                else
-                {
-                    throw new Exception("Expected redirect did not occur");
-                }
-            }
-            
-            var location = result.Headers.Location;
-
-            if (location == null)
-            {
-                throw new Exception("Redirect location not available");
-            }
-
-            string code = HttpUtility.ParseQueryString(location.Query).Get("code");
-            return code;
-        }
-
+        
         async Task<Tokens> ExchangeCodeForBearerTokenAsync(string code, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
         {
             var body = new JObject
@@ -264,10 +194,8 @@ namespace TeslaAuth
             };
         }
 
-        public async Task<Tokens> RefreshTokenAsync(string refreshToken, TeslaAccountRegion region, CancellationToken cancellationToken = default)
+        public async Task<Tokens> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
         {
-            var client = clients.GetOrAdd(region, CreateHttpClient);
-
             var body = new JObject
             {
                 {"grant_type", "refresh_token"},
