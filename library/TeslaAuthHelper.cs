@@ -31,37 +31,8 @@ namespace TeslaAuth
         readonly string UserAgent;
         readonly LoginInfo loginInfo;
         readonly HttpClient client;
-        static string RandomString(int length)
-        {
-            const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            lock (Random)
-            {
-                return new string(Enumerable.Repeat(chars, length)
-                    .Select(s => s[Random.Next(s.Length)]).ToArray());
-            }
-        }
-
-        static string ComputeSHA256Hash(string text)
-        {
-            string hashString;
-            using (var sha256 = SHA256.Create())
-            {
-                var hash = sha256.ComputeHash(Encoding.Default.GetBytes(text));
-                hashString = ToHex(hash, false);
-            }
-
-            return hashString;
-        }
-
-        static string ToHex(byte[] bytes, bool upperCase)
-        {
-            StringBuilder result = new StringBuilder(bytes.Length * 2);
-            for (int i = 0; i < bytes.Length; i++)
-                result.Append(bytes[i].ToString(upperCase ? "X2" : "x2"));
-            return result.ToString();
-        }
-
-
+        
+        #region Constructor and HttpClient initialisation
         public TeslaAuthHelper(string userAgent, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
         {
             UserAgent = userAgent;
@@ -96,7 +67,9 @@ namespace TeslaAuth
 
             return client;
         }
+        #endregion
 
+        #region Public API for browser-assisted auth
         public string GetLoginUrlForBrowser()
         {
             var code_challenge_SHA256 = ComputeSHA256Hash(loginInfo.CodeVerifier);
@@ -123,7 +96,7 @@ namespace TeslaAuth
             var q = HttpUtility.ParseQueryString(b.Query);
             var code = q["code"];
 
-            var tokens = await ExchangeCodeForBearerTokenAsync(code, loginInfo, client, cancellationToken);
+            var tokens = await ExchangeCodeForBearerTokenAsync(code, client, cancellationToken);
             var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client, cancellationToken);
             return new Tokens
             {
@@ -133,8 +106,127 @@ namespace TeslaAuth
                 ExpiresIn = accessAndRefreshTokens.ExpiresIn
             };
         }
+        #endregion
+
+        #region Public API for headless auth (only works if no CAPTCHA is displayed)
+        public async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown, CancellationToken cancellationToken = default)
+        {
+
+            var client = clients.GetOrAdd(region, CreateHttpClient);
+
+            await InitializeLoginAsync(client, cancellationToken);
+            var code = await GetAuthorizationCodeAsync(username, password, mfaCode, client, cancellationToken);
+            var tokens = await ExchangeCodeForBearerTokenAsync(code, client, cancellationToken);
+            var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client, cancellationToken);
+            return new Tokens
+            {
+                AccessToken = accessAndRefreshTokens.AccessToken,
+                RefreshToken = tokens.RefreshToken,
+                CreatedAt = accessAndRefreshTokens.CreatedAt,
+                ExpiresIn = accessAndRefreshTokens.ExpiresIn
+            };
+        }
+        #endregion
+
+        #region Public API for token refresh
+        public async Task<Tokens> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+        {
+            var body = new JObject
+            {
+                {"grant_type", "refresh_token"},
+                {"client_id", "ownerapi"},
+                {"refresh_token", refreshToken},
+                {"scope", "openid email offline_access"}
+            };
+
+            using var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
+            using var result = await client.PostAsync("oauth2/v3/token", content, cancellationToken);
+            var resultContent = await result.Content.ReadAsStringAsync();
+            var response = JObject.Parse(resultContent);
+            var accessToken = response["access_token"]!.Value<string>();
+            var newTokens = await ExchangeAccessTokenForBearerTokenAsync(accessToken, client, cancellationToken);
+            newTokens.RefreshToken = response["refresh_token"]!.Value<string>();
+            return newTokens;
+        }
+        #endregion
         
-        async Task<Tokens> ExchangeCodeForBearerTokenAsync(string code, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
+        #region Authentication helpers
+        async Task InitializeLoginAsync(HttpClient client, CancellationToken cancellationToken)
+        {
+            var loginUrl = GetLoginUrlForBrowser();
+            using var response = await client.GetAsync(loginUrl, cancellationToken);
+            var resultContent = await response.Content.ReadAsStringAsync();
+
+            var hiddenFields = Regex.Matches(resultContent, "type=\\\"hidden\\\" name=\\\"(.*?)\\\" value=\\\"(.*?)\\\"");
+            var formFields = new Dictionary<string, string>();
+            foreach (Match match in hiddenFields)
+            {
+                formFields.Add(match.Groups[1].Value, match.Groups[2].Value);
+            }
+
+            loginInfo.FormFields = formFields;
+
+        }
+
+        async Task<string> GetAuthorizationCodeAsync(string username, string password, string mfaCode, HttpClient client, CancellationToken cancellationToken)
+        {
+            var formFields = loginInfo.FormFields;
+            formFields.Add("identity", username);
+            formFields.Add("credential", password);
+
+            using var content = new FormUrlEncodedContent(formFields);
+
+            var b = new UriBuilder(client.BaseAddress + "oauth2/v3/authorize") {Port = -1};
+            var q = HttpUtility.ParseQueryString(b.Query);
+            q["client_id"] = "ownerapi";
+            q["code_challenge"] = loginInfo.CodeChallenge;
+            q["code_challenge_method"] = "S256";
+            q["redirect_uri"] = "https://auth.tesla.com/void/callback";
+            q["response_type"] = "code";
+            q["scope"] = "openid email offline_access";
+            q["state"] = loginInfo.State;
+            b.Query = q.ToString();
+            string url = b.ToString();
+
+            using var result = await client.PostAsync(url, content, cancellationToken);
+            string resultContent = await result.Content.ReadAsStringAsync();
+
+            if (result.StatusCode != HttpStatusCode.Redirect && !result.IsSuccessStatusCode)
+            {
+                throw new Exception(string.IsNullOrEmpty(result.ReasonPhrase)
+                    ? result.StatusCode.ToString()
+                    : result.ReasonPhrase);
+            }
+
+            if (result.StatusCode != HttpStatusCode.Redirect)
+            {
+                if (result.StatusCode == HttpStatusCode.OK && resultContent.Contains("passcode"))
+                {
+                    if (string.IsNullOrEmpty(mfaCode))
+                    {
+                        throw new Exception("Multi-factor code required to authenticate");
+                    }
+
+                    return await GetAuthorizationCodeWithMfaAsync(mfaCode, loginInfo, client, cancellationToken);
+                }
+                else
+                {
+                    throw new Exception("Expected redirect did not occur");
+                }
+            }
+
+            var location = result.Headers.Location;
+
+            if (location == null)
+            {
+                throw new Exception("Redirect location not available");
+            }
+
+            string code = HttpUtility.ParseQueryString(location.Query).Get("code");
+            return code;
+        }
+
+        async Task<Tokens> ExchangeCodeForBearerTokenAsync(string code, HttpClient client, CancellationToken cancellationToken)
         {
             var body = new JObject
             {
@@ -194,24 +286,30 @@ namespace TeslaAuth
             };
         }
 
-        public async Task<Tokens> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+        /// <summary>
+        /// Should your Owner API token begin with "cn-" you should POST to auth.tesla.cn Tesla SSO service to have it refresh. Owner API tokens
+        /// starting with "qts-" are to be refreshed using auth.tesla.com
+        /// </summary>
+        /// <param name="region">Which Tesla server is this account created with?</param>
+        /// <returns>Address like "https://auth.tesla.com", no trailing slash</returns>
+        static string GetBaseAddressForRegion(TeslaAccountRegion region)
         {
-            var body = new JObject
+            switch (region)
             {
-                {"grant_type", "refresh_token"},
-                {"client_id", "ownerapi"},
-                {"refresh_token", refreshToken},
-                {"scope", "openid email offline_access"}
-            };
+                case TeslaAccountRegion.Unknown:
+                case TeslaAccountRegion.USA:
+                    return "https://auth.tesla.com";
 
-            using var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
-            using var result = await client.PostAsync("oauth2/v3/token", content, cancellationToken);
-            var resultContent = await result.Content.ReadAsStringAsync();
-            var response = JObject.Parse(resultContent);
-            var accessToken = response["access_token"]!.Value<string>();
-            return await ExchangeAccessTokenForBearerTokenAsync(accessToken, client, cancellationToken);
+                case TeslaAccountRegion.China:
+                    return "https://auth.tesla.cn";
+
+                default:
+                    throw new NotImplementedException("Fell threw switch in GetBaseAddressForRegion for " + region);
+            }
         }
+        #endregion
 
+        #region MFA helpers
         async Task<string> GetAuthorizationCodeWithMfaAsync(string mfaCode, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
         {
             var mfaFactorId = await GetMfaFactorIdAsync(mfaCode, loginInfo, client, cancellationToken);
@@ -301,27 +399,38 @@ namespace TeslaAuth
 
             throw new Exception("Unable to get authorization code");
         }
+        #endregion
 
-        /// <summary>
-        /// Should your Owner API token begin with "cn-" you should POST to auth.tesla.cn Tesla SSO service to have it refresh. Owner API tokens
-        /// starting with "qts-" are to be refreshed using auth.tesla.com
-        /// </summary>
-        /// <param name="region">Which Tesla server is this account created with?</param>
-        /// <returns>Address like "https://auth.tesla.com", no trailing slash</returns>
-        static string GetBaseAddressForRegion(TeslaAccountRegion region)
+        #region General Utilities
+        static string RandomString(int length)
         {
-            switch (region)
+            const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            lock (Random)
             {
-                case TeslaAccountRegion.Unknown:
-                case TeslaAccountRegion.USA:
-                    return "https://auth.tesla.com";
-
-                case TeslaAccountRegion.China:
-                    return "https://auth.tesla.cn";
-
-                default:
-                    throw new NotImplementedException("Fell threw switch in GetBaseAddressForRegion for " + region);
+                return new string(Enumerable.Repeat(chars, length)
+                    .Select(s => s[Random.Next(s.Length)]).ToArray());
             }
         }
+
+        static string ComputeSHA256Hash(string text)
+        {
+            string hashString;
+            using (var sha256 = SHA256.Create())
+            {
+                var hash = sha256.ComputeHash(Encoding.Default.GetBytes(text));
+                hashString = ToHex(hash, false);
+            }
+
+            return hashString;
+        }
+
+        static string ToHex(byte[] bytes, bool upperCase)
+        {
+            StringBuilder result = new StringBuilder(bytes.Length * 2);
+            for (int i = 0; i < bytes.Length; i++)
+                result.Append(bytes[i].ToString(upperCase ? "X2" : "x2"));
+            return result.ToString();
+        }
+        #endregion
     }
 }
