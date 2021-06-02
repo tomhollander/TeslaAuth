@@ -6,12 +6,13 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <FileVersion>1.0.0</FileVersion>
-    <Version>$(FileVersion)-preview.2</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0</FileVersion>
+    <Version>2.1.0</Version>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <PackageVersion>$(Version)</PackageVersion>
     <PackageId>TeslaAuth</PackageId>
-    <Description>Fetch a Tesla bearer token for usage with the Tesla API that supports MFA.</Description>
+    <Description>Fetch a Tesla bearer token for usage with the Tesla API.
+Requires using a WebView or similar integrated browser to show the Tesla login UI.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageProjectUrl>https://github.com/tomhollander/TeslaAuth</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -22,6 +23,8 @@
     <IncludeSymbols>True</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <IncludeSource>True</IncludeSource>
+    <Authors>Tom Hollander</Authors>
+    <PackageReleaseNotes>New version to support web based UI flow</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
