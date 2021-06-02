@@ -67,7 +67,7 @@ namespace TeslaAuth
 
             return client;
         }
-        #endregion
+        #endregion Constructor and HttpClient initialisation
 
         #region Public API for browser-assisted auth
         public string GetLoginUrlForBrowser()
@@ -106,7 +106,7 @@ namespace TeslaAuth
                 ExpiresIn = accessAndRefreshTokens.ExpiresIn
             };
         }
-        #endregion
+        #endregion Public API for browser-assisted auth
 
         #region Public API for headless auth (only works if no CAPTCHA is displayed)
         public async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown, CancellationToken cancellationToken = default)
@@ -126,7 +126,7 @@ namespace TeslaAuth
                 ExpiresIn = accessAndRefreshTokens.ExpiresIn
             };
         }
-        #endregion
+        #endregion Public API for headless auth (only works if no CAPTCHA is displayed)
 
         #region Public API for token refresh
         public async Task<Tokens> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
@@ -153,7 +153,7 @@ namespace TeslaAuth
             newTokens.RefreshToken = response["refresh_token"]!.Value<string>();
             return newTokens;
         }
-        #endregion
+        #endregion Public API for token refresh
         
         #region Authentication helpers
         async Task InitializeLoginAsync(HttpClient client, CancellationToken cancellationToken)
@@ -317,7 +317,7 @@ namespace TeslaAuth
                     throw new NotImplementedException("Fell threw switch in GetBaseAddressForRegion for " + region);
             }
         }
-        #endregion
+        #endregion Authentication helpers
 
         #region MFA helpers
         async Task<string> GetAuthorizationCodeWithMfaAsync(string mfaCode, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
@@ -409,7 +409,7 @@ namespace TeslaAuth
 
             throw new Exception("Unable to get authorization code");
         }
-        #endregion
+        #endregion MFA helpers
 
         #region General Utilities
         static string RandomString(int length)
@@ -441,6 +441,6 @@ namespace TeslaAuth
                 result.Append(bytes[i].ToString(upperCase ? "X2" : "x2"));
             return result.ToString();
         }
-        #endregion
+        #endregion General Utilities
     }
 }
