@@ -141,6 +141,11 @@ namespace TeslaAuth
 
             using var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync("oauth2/v3/token", content, cancellationToken);
+            if (!result.IsSuccessStatusCode)
+            {
+                throw new Exception(string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase);
+            }
+
             var resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
             var accessToken = response["access_token"]!.Value<string>();
@@ -239,6 +244,11 @@ namespace TeslaAuth
 
             using var content = new StringContent(body.ToString(Newtonsoft.Json.Formatting.None), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content, cancellationToken);
+            if (!result.IsSuccessStatusCode)
+            {
+                throw new Exception(string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase);
+            }
+
             string resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
 
