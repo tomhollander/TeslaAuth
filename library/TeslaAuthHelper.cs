@@ -212,7 +212,7 @@ namespace TeslaAuth
                 {
                     if (string.IsNullOrEmpty(mfaCode))
                     {
-                        throw new Exception("Multi-factor code required to authenticate");
+                        throw new MultiFactorAuthenticationException(String.Format("Multi-factor code required to authenticate for account {0}", username), username);
                     }
 
                     return await GetAuthorizationCodeWithMfaAsync(mfaCode, loginInfo, client, cancellationToken);
@@ -379,7 +379,22 @@ namespace TeslaAuth
             string resultContent = await result.Content.ReadAsStringAsync();
 
             var response = JObject.Parse(resultContent);
-            bool valid = response["data"]!["valid"]!.Value<bool>();
+
+            bool valid = false;
+            var data = response["data"];
+            if (data != null)
+            {
+                valid = data["valid"]!.Value<bool>();
+                if (!valid)
+                {
+                    throw new MultiFactorAuthenticationException("MFA code is invalid");
+                }
+            }
+            else
+            {
+                var error = response["error"];
+                throw new MultiFactorAuthenticationException(error["message"]?.ToString());
+            }
             return valid;
         }
 
