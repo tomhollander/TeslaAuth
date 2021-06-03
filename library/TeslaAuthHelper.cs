@@ -22,12 +22,18 @@ using Newtonsoft.Json.Linq;
 
 namespace TeslaAuth
 {
+    /// <summary>
+    /// TeslaAuthHelper gets the OAuth2 access token and refresh token needed to interact with a Tesla account.
+    /// This class is not threadsafe, due to the use of instance state.  It works well for a mobile app used by a single
+    /// user at once.  If you are trying to log in with multiple accounts, create a new instance per session.  
+    /// Also, Tesla accounts in different countries are stored on different servers (such as China vs. the rest of the world).
+    /// You'll need a different instance for each region.
+    /// </summary>
     public class TeslaAuthHelper
     {
         const string TESLA_CLIENT_ID = "81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384";
         const string TESLA_CLIENT_SECRET = "c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3";
         static readonly Random Random = new Random();
-        readonly ConcurrentDictionary<TeslaAccountRegion, HttpClient> clients = new ConcurrentDictionary<TeslaAccountRegion, HttpClient>();
         readonly string UserAgent;
         readonly LoginInfo loginInfo;
         readonly HttpClient client;
@@ -109,11 +115,8 @@ namespace TeslaAuth
         #endregion Public API for browser-assisted auth
 
         #region Public API for headless auth (only works if no CAPTCHA is displayed)
-        public async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown, CancellationToken cancellationToken = default)
+        public async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, CancellationToken cancellationToken = default)
         {
-
-            var client = clients.GetOrAdd(region, CreateHttpClient);
-
             await InitializeLoginAsync(client, cancellationToken);
             var code = await GetAuthorizationCodeAsync(username, password, mfaCode, client, cancellationToken);
             var tokens = await ExchangeCodeForBearerTokenAsync(code, client, cancellationToken);
