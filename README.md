@@ -22,7 +22,7 @@ There are two ways of using this library as described below.
 
 ## Browser-assisted Example
 
-Probably the most reliable way of using the library is to integrate a WebView into your application and have it show Tesla's API. This approach should be resilient
+Probably the most reliable way of using the library is to integrate a WebView into your application and have it show Tesla's login UI. This approach should be resilient
 to certain changes on Tesla's side, such as when they randomly decide to include (and later remove) a CAPTCHA on the login page. 
 Since Tesla incorporated a CAPTCHA on their login page, it is no longer possible to authenticate using your own UI.
 
