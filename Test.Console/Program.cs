@@ -24,11 +24,11 @@ namespace Test.Console
             ServicePointManager.FindServicePoint(new Uri("https://owner-api.teslamotors.com")).ConnectionLeaseTimeout = 60 * 1000;
             ServicePointManager.FindServicePoint(new Uri("https://owner-api.teslamotors.com")).ConnectionLimit = 10;
 
-            var authHelper = new TeslaAuthHelper("TeslaAuthHelperTest/1.0");
+            var authHelper = new TeslaAuthHelper("TeslaAuthHelperTest/1.0", region);
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
 
-            var tokens = await authHelper.AuthenticateAsync(username, password, mfaCode, region, cts.Token);
+            var tokens = await authHelper.AuthenticateAsync(username, password, mfaCode, cts.Token);
             System.Console.WriteLine("Access token: " + tokens.AccessToken);
             System.Console.WriteLine("Refresh token: " + tokens.RefreshToken);
             System.Console.WriteLine("Created at: " + tokens.CreatedAt);

@@ -22,12 +22,18 @@ using Newtonsoft.Json.Linq;
 
 namespace TeslaAuth
 {
+    /// <summary>
+    /// TeslaAuthHelper gets the OAuth2 access token and refresh token needed to interact with a Tesla account.
+    /// This class is not threadsafe, due to the use of instance state.  It works well for a mobile app used by a single
+    /// user at once.  If you are trying to log in with multiple accounts, create a new instance per session.  
+    /// Also, Tesla accounts in different countries are stored on different servers (such as China vs. the rest of the world).
+    /// You'll need a different instance for each region.
+    /// </summary>
     public class TeslaAuthHelper
     {
         const string TESLA_CLIENT_ID = "81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384";
         const string TESLA_CLIENT_SECRET = "c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3";
         static readonly Random Random = new Random();
-        readonly ConcurrentDictionary<TeslaAccountRegion, HttpClient> clients = new ConcurrentDictionary<TeslaAccountRegion, HttpClient>();
         readonly string UserAgent;
         readonly LoginInfo loginInfo;
         readonly HttpClient client;
@@ -67,7 +73,7 @@ namespace TeslaAuth
 
             return client;
         }
-        #endregion
+        #endregion Constructor and HttpClient initialisation
 
         #region Public API for browser-assisted auth
         public string GetLoginUrlForBrowser()
@@ -106,14 +112,11 @@ namespace TeslaAuth
                 ExpiresIn = accessAndRefreshTokens.ExpiresIn
             };
         }
-        #endregion
+        #endregion Public API for browser-assisted auth
 
         #region Public API for headless auth (only works if no CAPTCHA is displayed)
-        public async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown, CancellationToken cancellationToken = default)
+        public async Task<Tokens> AuthenticateAsync(string username, string password, string mfaCode = null, CancellationToken cancellationToken = default)
         {
-
-            var client = clients.GetOrAdd(region, CreateHttpClient);
-
             await InitializeLoginAsync(client, cancellationToken);
             var code = await GetAuthorizationCodeAsync(username, password, mfaCode, client, cancellationToken);
             var tokens = await ExchangeCodeForBearerTokenAsync(code, client, cancellationToken);
@@ -126,7 +129,7 @@ namespace TeslaAuth
                 ExpiresIn = accessAndRefreshTokens.ExpiresIn
             };
         }
-        #endregion
+        #endregion Public API for headless auth (only works if no CAPTCHA is displayed)
 
         #region Public API for token refresh
         public async Task<Tokens> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
@@ -141,6 +144,11 @@ namespace TeslaAuth
 
             using var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync("oauth2/v3/token", content, cancellationToken);
+            if (!result.IsSuccessStatusCode)
+            {
+                throw new Exception(string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase);
+            }
+
             var resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
             var accessToken = response["access_token"]!.Value<string>();
@@ -148,7 +156,7 @@ namespace TeslaAuth
             newTokens.RefreshToken = response["refresh_token"]!.Value<string>();
             return newTokens;
         }
-        #endregion
+        #endregion Public API for token refresh
         
         #region Authentication helpers
         async Task InitializeLoginAsync(HttpClient client, CancellationToken cancellationToken)
@@ -204,7 +212,7 @@ namespace TeslaAuth
                 {
                     if (string.IsNullOrEmpty(mfaCode))
                     {
-                        throw new Exception("Multi-factor code required to authenticate");
+                        throw new MultiFactorAuthenticationException(String.Format("Multi-factor code required to authenticate for account {0}", username), username);
                     }
 
                     return await GetAuthorizationCodeWithMfaAsync(mfaCode, loginInfo, client, cancellationToken);
@@ -239,6 +247,11 @@ namespace TeslaAuth
 
             using var content = new StringContent(body.ToString(Newtonsoft.Json.Formatting.None), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content, cancellationToken);
+            if (!result.IsSuccessStatusCode)
+            {
+                throw new Exception(string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase);
+            }
+
             string resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
 
@@ -307,7 +320,7 @@ namespace TeslaAuth
                     throw new NotImplementedException("Fell threw switch in GetBaseAddressForRegion for " + region);
             }
         }
-        #endregion
+        #endregion Authentication helpers
 
         #region MFA helpers
         async Task<string> GetAuthorizationCodeWithMfaAsync(string mfaCode, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
@@ -366,7 +379,22 @@ namespace TeslaAuth
             string resultContent = await result.Content.ReadAsStringAsync();
 
             var response = JObject.Parse(resultContent);
-            bool valid = response["data"]!["valid"]!.Value<bool>();
+
+            bool valid = false;
+            var data = response["data"];
+            if (data != null)
+            {
+                valid = data["valid"]!.Value<bool>();
+                if (!valid)
+                {
+                    throw new MultiFactorAuthenticationException("MFA code is invalid");
+                }
+            }
+            else
+            {
+                var error = response["error"];
+                throw new MultiFactorAuthenticationException(error["message"]?.ToString());
+            }
             return valid;
         }
 
@@ -399,7 +427,7 @@ namespace TeslaAuth
 
             throw new Exception("Unable to get authorization code");
         }
-        #endregion
+        #endregion MFA helpers
 
         #region General Utilities
         static string RandomString(int length)
@@ -431,6 +459,6 @@ namespace TeslaAuth
                 result.Append(bytes[i].ToString(upperCase ? "X2" : "x2"));
             return result.ToString();
         }
-        #endregion
+        #endregion General Utilities
     }
 }
