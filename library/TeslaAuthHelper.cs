@@ -102,7 +102,10 @@ namespace TeslaAuth
             var q = HttpUtility.ParseQueryString(b.Query);
             var code = q["code"];
 
+            // As of March 21 2022, this returns a bearer token.  No need to call ExchangeAccessTokenForBearerToken
             var tokens = await ExchangeCodeForBearerTokenAsync(code, client, cancellationToken);
+            return tokens;
+            /*
             var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client, cancellationToken);
             return new Tokens
             {
@@ -111,6 +114,7 @@ namespace TeslaAuth
                 CreatedAt = accessAndRefreshTokens.CreatedAt,
                 ExpiresIn = accessAndRefreshTokens.ExpiresIn
             };
+            */
         }
         #endregion Public API for browser-assisted auth
 
@@ -151,13 +155,26 @@ namespace TeslaAuth
 
             var resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
+
+            // As of March 21 2022, this returns a bearer token.  No need to call ExchangeAccessTokenForBearerToken
+            var tokens = new Tokens
+            {
+                AccessToken = response["access_token"]!.Value<string>(),
+                RefreshToken = response["refresh_token"]!.Value<string>(),
+                ExpiresIn = TimeSpan.FromSeconds(response["expires_in"]!.Value<long>()),
+                TokenType = response["token_type"]!.Value<string>(),
+                CreatedAt = DateTimeOffset.Now,
+            };
+            return tokens;
+            /*
             var accessToken = response["access_token"]!.Value<string>();
             var newTokens = await ExchangeAccessTokenForBearerTokenAsync(accessToken, client, cancellationToken);
             newTokens.RefreshToken = response["refresh_token"]!.Value<string>();
             return newTokens;
+            */
         }
         #endregion Public API for token refresh
-        
+
         #region Authentication helpers
         async Task InitializeLoginAsync(HttpClient client, CancellationToken cancellationToken)
         {
@@ -169,7 +186,8 @@ namespace TeslaAuth
             var formFields = new Dictionary<string, string>();
             foreach (Match match in hiddenFields)
             {
-                formFields.Add(match.Groups[1].Value, match.Groups[2].Value);
+                // Around October 2021 Tesla started showing duplicate hidden fields in the page.  They had the same value.
+                formFields[match.Groups[1].Value] = match.Groups[2].Value;
             }
 
             loginInfo.FormFields = formFields;
@@ -217,9 +235,30 @@ namespace TeslaAuth
 
                     return await GetAuthorizationCodeWithMfaAsync(mfaCode, loginInfo, client, cancellationToken);
                 }
+                else if (result.StatusCode == HttpStatusCode.OK)
+                {
+                    // CAPTCHA requirement, probably.
+                    bool hasCaptcha = resultContent.Contains("captcha");
+                    bool hasReCaptcha = resultContent.Contains("recaptcha");
+                    bool hasRedirectLocation = result.Headers.Location != null;
+                    if (!hasCaptcha)
+                    {
+                        // This is unexpected.  What is this?
+                        throw new Exception("Can't log in - expected redirect did not occur.  hasRedirect: " + hasRedirectLocation);
+                    }
+                    if (hasReCaptcha)
+                    {
+                        throw new Exception("Can't log in - Tesla ReCAPTCHA may be necessary");
+                    }
+                    throw new Exception("Can't log in - Tesla CAPTCHA support needed.");
+                }
                 else
                 {
-                    throw new Exception("Expected redirect did not occur");
+                    // Possible causes for ending up here:
+                    // 1) Account could require an MFA code and we didn't provide it, maybe.  Captcha check may come first though.
+                    // What happens with the wrong MFA code?  Does that come here?
+                    // We believe cases like the account being locked fall into a different codepath below.
+                    throw new Exception("Expected redirect did not occur - probably need multi-factor authentication code.  Status code: " + result.StatusCode);
                 }
             }
 
@@ -258,7 +297,10 @@ namespace TeslaAuth
             var tokens = new Tokens
             {
                 AccessToken = response["access_token"]!.Value<string>(),
-                RefreshToken = response["refresh_token"]!.Value<string>()
+                RefreshToken = response["refresh_token"]!.Value<string>(),
+                ExpiresIn = TimeSpan.FromSeconds(response["expires_in"]!.Value<long>()),
+                TokenType = response["token_type"]!.Value<string>(),
+                CreatedAt = DateTimeOffset.Now,
             };
             return tokens;
         }
