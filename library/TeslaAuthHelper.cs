@@ -103,14 +103,16 @@ namespace TeslaAuth
             var code = q["code"];
 
             var tokens = await ExchangeCodeForBearerTokenAsync(code, client, cancellationToken);
-            var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client, cancellationToken);
-            return new Tokens
-            {
-                AccessToken = accessAndRefreshTokens.AccessToken,
-                RefreshToken = tokens.RefreshToken,
-                CreatedAt = accessAndRefreshTokens.CreatedAt,
-                ExpiresIn = accessAndRefreshTokens.ExpiresIn
-            };
+            return tokens;
+            // Step 4 no longer required
+            //var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client, cancellationToken);
+            //return new Tokens
+            //{
+            //    AccessToken = accessAndRefreshTokens.AccessToken,
+            //    RefreshToken = tokens.RefreshToken,
+            //    CreatedAt = accessAndRefreshTokens.CreatedAt,
+            //    ExpiresIn = accessAndRefreshTokens.ExpiresIn
+            //};
         }
         #endregion Public API for browser-assisted auth
 
@@ -120,14 +122,16 @@ namespace TeslaAuth
             await InitializeLoginAsync(client, cancellationToken);
             var code = await GetAuthorizationCodeAsync(username, password, mfaCode, client, cancellationToken);
             var tokens = await ExchangeCodeForBearerTokenAsync(code, client, cancellationToken);
-            var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client, cancellationToken);
-            return new Tokens
-            {
-                AccessToken = accessAndRefreshTokens.AccessToken,
-                RefreshToken = tokens.RefreshToken,
-                CreatedAt = accessAndRefreshTokens.CreatedAt,
-                ExpiresIn = accessAndRefreshTokens.ExpiresIn
-            };
+            return tokens;
+            // Step 4 no longer required
+            //var accessAndRefreshTokens = await ExchangeAccessTokenForBearerTokenAsync(tokens.AccessToken, client, cancellationToken);
+            //return new Tokens
+            //{
+            //    AccessToken = accessAndRefreshTokens.AccessToken,
+            //    RefreshToken = tokens.RefreshToken,
+            //    CreatedAt = accessAndRefreshTokens.CreatedAt,
+            //    ExpiresIn = accessAndRefreshTokens.ExpiresIn
+            //};
         }
         #endregion Public API for headless auth (only works if no CAPTCHA is displayed)
 
@@ -151,10 +155,19 @@ namespace TeslaAuth
 
             var resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
-            var accessToken = response["access_token"]!.Value<string>();
-            var newTokens = await ExchangeAccessTokenForBearerTokenAsync(accessToken, client, cancellationToken);
-            newTokens.RefreshToken = response["refresh_token"]!.Value<string>();
-            return newTokens;
+            // Bearer Token (Step 4) Deprecated
+            //var accessToken = response["access_token"]!.Value<string>();
+            //var newTokens = await ExchangeAccessTokenForBearerTokenAsync(accessToken, client, cancellationToken);
+            //newTokens.RefreshToken = response["refresh_token"]!.Value<string>();
+            //return newTokens;
+            var tokens = new Tokens
+            {
+                AccessToken = response["access_token"]!.Value<string>(),
+                RefreshToken = response["refresh_token"]!.Value<string>(),
+                CreatedAt = DateTimeOffset.Now,
+                ExpiresIn = TimeSpan.FromSeconds(response["expires_in"]!.Value<long>())
+            };
+            return tokens;
         }
         #endregion Public API for token refresh
         
@@ -258,7 +271,9 @@ namespace TeslaAuth
             var tokens = new Tokens
             {
                 AccessToken = response["access_token"]!.Value<string>(),
-                RefreshToken = response["refresh_token"]!.Value<string>()
+                RefreshToken = response["refresh_token"]!.Value<string>(),
+                CreatedAt = DateTimeOffset.FromUnixTimeSeconds(response["created_at"]!.Value<long>()),
+                ExpiresIn = TimeSpan.FromSeconds(response["expires_in"]!.Value<long>())
             };
             return tokens;
         }
