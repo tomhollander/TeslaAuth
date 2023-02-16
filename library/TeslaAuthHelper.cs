@@ -288,7 +288,10 @@ namespace TeslaAuth
             using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content, cancellationToken);
             if (!result.IsSuccessStatusCode)
             {
-                throw new Exception(string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase);
+                var failureDetails = result.Content.ReadAsStringAsync().Result;
+                var message = string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase;
+                message += " - " + failureDetails;
+                throw new Exception(message);
             }
 
             string resultContent = await result.Content.ReadAsStringAsync();

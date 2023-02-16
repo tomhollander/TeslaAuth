@@ -47,6 +47,15 @@ namespace Test.WPF
                 {
                     var tokens = await teslaAuth.GetTokenAfterLoginAsync(url);
                     ShowTokens(tokens);
+                }).ContinueWith(task =>
+                {
+                    if (task.IsFaulted)
+                    {
+                        Exception e = task.Exception;
+                        if (e is AggregateException)
+                            e = e.InnerException;
+                        MessageBox.Show(e.Message, "Getting tokens after login failed");
+                    }
                 });
             }
         }
