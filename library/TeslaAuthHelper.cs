@@ -78,8 +78,8 @@ namespace TeslaAuth
         #region Public API for browser-assisted auth
         public string GetLoginUrlForBrowser()
         {
-            var code_challenge_SHA256 = ComputeSHA256Hash(loginInfo.CodeVerifier);
-            loginInfo.CodeChallenge = Convert.ToBase64String(Encoding.Default.GetBytes(code_challenge_SHA256));
+            byte[] code_challenge_SHA256 = ComputeSHA256HashInBytes(loginInfo.CodeVerifier);
+            loginInfo.CodeChallenge = Base64UrlEncode(code_challenge_SHA256);
 
             var b = new UriBuilder(client.BaseAddress + "/oauth2/v3/authorize") { Port = -1 };
 
@@ -91,6 +91,7 @@ namespace TeslaAuth
             q["response_type"] = "code";
             q["scope"] = "openid email offline_access";
             q["state"] = loginInfo.State;
+            //q["locale"] = "en-US";
             b.Query = q.ToString();
             return b.ToString();
         }
@@ -211,6 +212,7 @@ namespace TeslaAuth
             q["response_type"] = "code";
             q["scope"] = "openid email offline_access";
             q["state"] = loginInfo.State;
+            //q["locale"] = "en-US";
             b.Query = q.ToString();
             string url = b.ToString();
 
@@ -281,7 +283,8 @@ namespace TeslaAuth
                 {"client_id", "ownerapi"},
                 {"code", code},
                 {"code_verifier", loginInfo.CodeVerifier},
-                {"redirect_uri", "https://auth.tesla.com/void/callback"}
+                {"redirect_uri", "https://auth.tesla.com/void/callback"},
+                //{"locale", "en-US" },
             };
 
             using var content = new StringContent(body.ToString(Newtonsoft.Json.Formatting.None), Encoding.UTF8, "application/json");
@@ -458,6 +461,7 @@ namespace TeslaAuth
             q["response_type"] = "code";
             q["scope"] = "openid email offline_access";
             q["state"] = loginInfo.State;
+            //q["locale"] = "en-US";
             b.Query = q.ToString();
             var url = b.ToString();
 
@@ -475,8 +479,10 @@ namespace TeslaAuth
         #endregion MFA helpers
 
         #region General Utilities
-        static string RandomString(int length)
+        public static string RandomString(int length)
         {
+            // Technically this should include the characters '-', '.', '_', and '~'.  However let's
+            // keep this simpler for now to avoid potential URL encoding issues.
             const string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             lock (Random)
             {
@@ -485,16 +491,14 @@ namespace TeslaAuth
             }
         }
 
-        static string ComputeSHA256Hash(string text)
+        static byte[] ComputeSHA256HashInBytes(string text)
         {
-            string hashString;
             using (var sha256 = SHA256.Create())
             {
-                var hash = sha256.ComputeHash(Encoding.Default.GetBytes(text));
-                hashString = ToHex(hash, false);
+                byte[] textAsBytes = GetBytes(text);  // was Encoding.Default.GetBytes(text) but that depends on the current machine's code page settings.
+                var hash = sha256.ComputeHash(textAsBytes);
+                return hash;
             }
-
-            return hashString;
         }
 
         static string ToHex(byte[] bytes, bool upperCase)
@@ -503,6 +507,51 @@ namespace TeslaAuth
             for (int i = 0; i < bytes.Length; i++)
                 result.Append(bytes[i].ToString(upperCase ? "X2" : "x2"));
             return result.ToString();
+        }
+
+        public static byte[] GetBytes(String s)
+        {
+            // This is just a passthrough.  We want to make sure that behavior for characters with a
+            // code point value >= 128 is passed through as-is, without depending on your current
+            // machine's default ANSI code page or the exact behavior of ASCIIEncoding.  Some people
+            // are using UTF-8 but that may vary the length of the code verifier, perhaps inappropriately.
+            byte[] bytes = new byte[s.Length];
+            for(int i = 0; i<s.Length; i++)
+                bytes[i] = (byte)s[i];
+            return bytes;
+        }
+
+        public static string Base64UrlEncode(byte[] bytes)
+        {
+            String base64 = Convert.ToBase64String(bytes);
+            String encoded = base64
+                .Replace('+', '-')
+                .Replace('/', '_')
+                .Replace("=", String.Empty)
+                .Trim();
+            return encoded;
+        }
+
+        /// <summary>
+        /// For testing purposes, create a challenge from a code verifier. 
+        /// </summary>
+        /// <param name="verifier"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="Exception"></exception>
+        public static string Challenge(string verifier)
+        {
+            if (verifier == null)
+                throw new ArgumentNullException(nameof(verifier));
+
+            var bytes = GetBytes(verifier);
+            using var hashAlgorithm = SHA256.Create();
+            var hash = hashAlgorithm.ComputeHash(bytes);
+            var challenge = Base64UrlEncode(hash);
+
+            if (String.IsNullOrEmpty(challenge))
+                throw new Exception("Failed to create challenge for verifier");
+            return challenge;
         }
         #endregion General Utilities
     }
