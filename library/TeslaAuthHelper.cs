@@ -149,12 +149,12 @@ namespace TeslaAuth
 
             using var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync("oauth2/v3/token", content, cancellationToken);
+            var resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode)
             {
                 throw new Exception(string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase);
             }
 
-            var resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
 
             // As of March 21 2022, this returns a bearer token.  No need to call ExchangeAccessTokenForBearerToken
@@ -246,13 +246,13 @@ namespace TeslaAuth
                     if (!hasCaptcha)
                     {
                         // This is unexpected.  What is this?
-                        throw new Exception("Can't log in - expected redirect did not occur.  hasRedirect: " + hasRedirectLocation);
+                        throw new Exception("Can't log in with Tesla - expected redirect did not occur.  hasRedirect: " + hasRedirectLocation);
                     }
                     if (hasReCaptcha)
                     {
-                        throw new Exception("Can't log in - Tesla ReCAPTCHA may be necessary");
+                        throw new Exception("Please re-enter your Tesla account credentials for account {username}.");
                     }
-                    throw new Exception("Can't log in - Tesla CAPTCHA support needed.");
+                    throw new Exception("Can't log in with Tesla - CAPTCHA support needed.");
                 }
                 else
                 {
@@ -268,7 +268,7 @@ namespace TeslaAuth
 
             if (location == null)
             {
-                throw new Exception("Redirect location not available");
+                throw new Exception($"Logging in failed for {username}.  The account may be locked.");
             }
 
             string code = HttpUtility.ParseQueryString(location.Query).Get("code");
@@ -289,15 +289,15 @@ namespace TeslaAuth
 
             using var content = new StringContent(body.ToString(Newtonsoft.Json.Formatting.None), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content, cancellationToken);
+            string resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode)
             {
-                var failureDetails = result.Content.ReadAsStringAsync().Result;
+                var failureDetails = resultContent;
                 var message = string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase;
                 message += " - " + failureDetails;
                 throw new Exception(message);
             }
 
-            string resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
 
             var tokens = new Tokens
@@ -474,7 +474,7 @@ namespace TeslaAuth
                 return HttpUtility.ParseQueryString(location.Query).Get("code");
             }
 
-            throw new Exception("Unable to get authorization code");
+            throw new Exception(String.Format("Unable to get Tesla authorization code.  StatusCode: {0}", result.StatusCode));
         }
         #endregion MFA helpers
 
@@ -501,14 +501,6 @@ namespace TeslaAuth
             }
         }
 
-        static string ToHex(byte[] bytes, bool upperCase)
-        {
-            StringBuilder result = new StringBuilder(bytes.Length * 2);
-            for (int i = 0; i < bytes.Length; i++)
-                result.Append(bytes[i].ToString(upperCase ? "X2" : "x2"));
-            return result.ToString();
-        }
-
         public static byte[] GetBytes(String s)
         {
             // This is just a passthrough.  We want to make sure that behavior for characters with a
@@ -527,8 +519,9 @@ namespace TeslaAuth
             String encoded = base64
                 .Replace('+', '-')
                 .Replace('/', '_')
-                .Replace("=", String.Empty)
-                .Trim();
+                .TrimEnd('=');
+            // Note: We are assuming that ToBase64String will never add trailing or leading spaces.
+            // We could call String.Trim;  we don't need to.
             return encoded;
         }
 
