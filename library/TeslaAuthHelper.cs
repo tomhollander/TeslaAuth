@@ -109,7 +109,7 @@ namespace TeslaAuth
             q["response_type"] = "code";
             q["scope"] = scopes;
             q["state"] = loginInfo.State;
-            q["nonce"] = Random.Next(1000000).ToString("X");
+            q["nonce"] = RandomString(10);
             //q["locale"] = "en-US";
             b.Query = q.ToString();
             return b.ToString();
@@ -128,7 +128,6 @@ namespace TeslaAuth
 
         }
         #endregion Public API for browser-assisted auth
-
         
         #region Public API for token refresh
         public async Task<Tokens> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
@@ -186,15 +185,15 @@ namespace TeslaAuth
 
             using var content = new StringContent(body.ToString(Newtonsoft.Json.Formatting.None), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content, cancellationToken);
+            string resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode)
             {
-                var failureDetails = result.Content.ReadAsStringAsync().Result;
+                var failureDetails = resultContent;
                 var message = string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase;
                 message += " - " + failureDetails;
                 throw new Exception(message);
             }
 
-            string resultContent = await result.Content.ReadAsStringAsync();
             var response = JObject.Parse(resultContent);
 
             var tokens = new Tokens
@@ -233,114 +232,6 @@ namespace TeslaAuth
         }
         #endregion Authentication helpers
 
-        #region MFA helpers
-        async Task<string> GetAuthorizationCodeWithMfaAsync(string mfaCode, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
-        {
-            var mfaFactorId = await GetMfaFactorIdAsync(mfaCode, loginInfo, client, cancellationToken);
-            var code = await GetCodeAfterValidMfaAsync(loginInfo, client, cancellationToken);
-            return code;
-        }
-
-        async Task<string> GetMfaFactorIdAsync(string mfaCode, LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
-        {
-            var b = new UriBuilder(client.BaseAddress + "oauth2/v3/authorize/mfa/factors") {Port = -1};
-
-            var q = HttpUtility.ParseQueryString(b.Query);
-            q["transaction_id"] = loginInfo.FormFields["transaction_id"];
-            b.Query = q.ToString();
-            string url = b.ToString();
-
-            using var  result = await client.GetAsync(url, cancellationToken);
-            var resultContent = await result.Content.ReadAsStringAsync();
-
-            var response = JObject.Parse(resultContent);
-
-            for (var i = 0; i < response["data"]!.Count(); i++)
-            {
-                var mfaFactorId = response["data"]![i]!["id"]!.Value<string>();
-
-                if (await VerifyMfaCodeAsync(mfaCode, loginInfo, mfaFactorId, client, cancellationToken))
-                {
-                    return mfaFactorId;
-                }
-            }
-
-            throw new Exception("MFA code not matching on registered devices."); 
-        }
-
-        async Task<bool> VerifyMfaCodeAsync(string mfaCode, LoginInfo loginInfo, string factorId, HttpClient client, CancellationToken cancellationToken)
-        {
-            var body = new JObject
-            {
-                {"factor_id", factorId},
-                {"passcode", mfaCode},
-                {"transaction_id", loginInfo.FormFields["transaction_id"]}
-            };
-
-            using var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, "oauth2/v3/authorize/mfa/verify")
-            {
-                Headers = { Referrer = new Uri("https://auth.tesla.com") },
-                Content = content,
-            };
-
-            using var result = await client.SendAsync(request, cancellationToken);
-            
-            string resultContent = await result.Content.ReadAsStringAsync();
-
-            var response = JObject.Parse(resultContent);
-
-            bool valid = false;
-            var data = response["data"];
-            if (data != null)
-            {
-                valid = data["valid"]!.Value<bool>();
-                if (!valid)
-                {
-                    throw new MultiFactorAuthenticationException("MFA code is invalid");
-                }
-            }
-            else
-            {
-                var error = response["error"];
-                throw new MultiFactorAuthenticationException(error["message"]?.ToString());
-            }
-            return valid;
-        }
-
-        async Task<string> GetCodeAfterValidMfaAsync(LoginInfo loginInfo, HttpClient client, CancellationToken cancellationToken)
-        {
-            var d = new Dictionary<string, string> {{"transaction_id", loginInfo.FormFields["transaction_id"]}};
-
-            using var content = new FormUrlEncodedContent(d);
-
-            var b = new UriBuilder(client.BaseAddress + "oauth2/v3/authorize") {Port = -1};
-            var q = HttpUtility.ParseQueryString(b.Query);
-            q["client_id"] = "ownerapi";
-            q["code_challenge"] = loginInfo.CodeChallenge;
-            q["code_challenge_method"] = "S256";
-            q["redirect_uri"] = "http://localhost:58585";
-            q["response_type"] = "code";
-            q["scope"] = "openid offline_access vehicle_device_data";
-            q["state"] = loginInfo.State;
-            //q["locale"] = "en-US";
-            b.Query = q.ToString();
-            var url = b.ToString();
-
-            using var result = await client.PostAsync(url, content, cancellationToken);
-
-            var location = result.Headers.Location;
-
-            if (result.StatusCode == HttpStatusCode.Redirect && location != null)
-            {
-                return HttpUtility.ParseQueryString(location.Query).Get("code");
-            }
-
-            throw new Exception("Unable to get authorization code");
-        }
-        #endregion MFA helpers
-
         #region General Utilities
         public static string RandomString(int length)
         {
@@ -364,14 +255,6 @@ namespace TeslaAuth
             }
         }
 
-        static string ToHex(byte[] bytes, bool upperCase)
-        {
-            StringBuilder result = new StringBuilder(bytes.Length * 2);
-            for (int i = 0; i < bytes.Length; i++)
-                result.Append(bytes[i].ToString(upperCase ? "X2" : "x2"));
-            return result.ToString();
-        }
-
         public static byte[] GetBytes(String s)
         {
             // This is just a passthrough.  We want to make sure that behavior for characters with a
@@ -390,8 +273,9 @@ namespace TeslaAuth
             String encoded = base64
                 .Replace('+', '-')
                 .Replace('/', '_')
-                .Replace("=", String.Empty)
-                .Trim();
+                .TrimEnd('=');
+            // Note: We are assuming that ToBase64String will never add trailing or leading spaces.
+            // We could call String.Trim;  we don't need to.
             return encoded;
         }
 
