@@ -34,7 +34,7 @@ namespace TeslaAuth
         // Constants for using the legacy Owner API. Fleet API users supply their own values
         const string TESLA_CLIENT_ID = "81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384";
         const string TESLA_CLIENT_SECRET = "c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3";
-        const string TESLA_REDIRECT_URI = "https://auth.tesla.com/void/callback\"";
+        const string TESLA_REDIRECT_URI = "https://auth.tesla.com/void/callback";
         const string TESLA_SCOPES = "openid email offline_access";
 
         static readonly Random Random = new Random();
@@ -81,7 +81,7 @@ namespace TeslaAuth
         /// </summary>
         /// <param name="userAgent">User agent string to use for server-side HTTP requests (can be null)</param>
         /// <param name="region">The API region to use</param>
-        public TeslaAuthHelper(string userAgent, TeslaAccountRegion region = TeslaAccountRegion.Unknown) :  this(region, TESLA_CLIENT_ID, TESLA_CLIENT_SECRET, TESLA_REDIRECT_URI, TESLA_SCOPES, userAgent)
+        public TeslaAuthHelper(string userAgent = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown) :  this(region, TESLA_CLIENT_ID, TESLA_CLIENT_SECRET, TESLA_REDIRECT_URI, TESLA_SCOPES, userAgent)
         {
             // Note parameter order is different to the Fleet API constructor for compatibility with older versions. 
             // This constructor will likely be removed if the Owner API becomes unavailable 
@@ -268,6 +268,8 @@ namespace TeslaAuth
                     return "https://fleet-api.prd.na.vn.cloud.tesla.com";
                 case TeslaAccountRegion.Europe:
                     return "https://fleet-api.prd.eu.vn.cloud.tesla.com";
+                case TeslaAccountRegion.China:
+                    return String.Empty; // We don't know the Fleet API URL for China, and this is ignored for Owner API
                 default:
                     throw new NotImplementedException("Fell threw switch in GetAudienceAdressForRegion for " + region);
             }
