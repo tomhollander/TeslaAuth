@@ -46,7 +46,7 @@ namespace Test.WPF
                 if (userDataCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.UserData); }
                 if (vehicleDataCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.VechicleDeviceData); }
                 if (vehicleCommandsCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.VehicleCommands); }
-                teslaAuth = new TeslaAuthHelper("TeslaAuth/1.0", clientIdTextBox.Text, clientSecretTextBox.Text, redirectUriTextBox.Text, Scopes.GetScopeString(scopesToInclude.ToArray()));
+                teslaAuth = new TeslaAuthHelper(TeslaAccountRegion.USA, clientIdTextBox.Text, clientSecretTextBox.Text, redirectUriTextBox.Text, Scopes.BuildScopeString(scopesToInclude.ToArray()));
             }
 
             await webView.EnsureCoreWebView2Async();

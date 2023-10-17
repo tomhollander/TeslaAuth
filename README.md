@@ -22,16 +22,18 @@ The library is compiled using .NET Standard 2.0, and can be used by any flavour 
 .NET, .NET Core, .NET Framework, Mono, UWP and Xamarin.
 
 ## Sample Apps
-This repo includes two samples:
+This repo includes three samples:
 
 1. A WPF sample that demonstrates a native client authentication with an embedded iframe (only runs on Windows)
-2. An ASP.NET Core app that demonstates web authentication (should work across platforms)
+2. A console app that launches the system browser to complete authentication - low tech but simple (should work across platforms)
+3. An ASP.NET Core app that demonstates web authentication (should work across platforms)
 
 The WPF sample can be used with both the Owner API and the Fleet API. For the latter you need to supply your own Fleet API keys.
 You can use any Redirect URL (doesn't even need to be real)
 
-The web sample only works with the Fleet API, and you need to supply yout own Fleet API keys and ensure the configured Redirect URL 
-matches the sample app host, port and path.
+The console and web sample only works with the Fleet API, and you need to supply yout own Fleet API keys. You must use a Redirect
+Redirect URL that matches the one configured for your app. For the Console sammple it doesn't matter what this is, but for the web
+sample it must the sample website's host, port and path.
 
 ## Usage
 To authenticate users for the Tesla API, you need to show the Tesla sign in UI in a browser (system or embedded).

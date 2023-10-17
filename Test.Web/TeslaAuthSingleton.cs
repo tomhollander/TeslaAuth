@@ -17,7 +17,7 @@ namespace Test.Web
                 if (instance == null) 
                 {
                     var redirectUri = new Uri(new Uri(request.GetEncodedUrl()), "/redirect");
-                    instance = new TeslaAuthHelper("TeslaAuthHelper/1.0", config.GetSection("TeslaAuth:ClientId").Value,
+                    instance = new TeslaAuthHelper(TeslaAccountRegion.USA, config.GetSection("TeslaAuth:ClientId").Value,
                         config.GetSection("TeslaAuth:ClientSecret").Value, redirectUri.AbsoluteUri, config.GetSection("TeslaAuth:Scope").Value);
                 }
             }

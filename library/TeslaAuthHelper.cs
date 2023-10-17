@@ -31,6 +31,7 @@ namespace TeslaAuth
     /// </summary>
     public class TeslaAuthHelper
     {
+        // Constants for using the legacy Owner API. Fleet API users supply their own values
         const string TESLA_CLIENT_ID = "81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384";
         const string TESLA_CLIENT_SECRET = "c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3";
         const string TESLA_REDIRECT_URI = "https://auth.tesla.com/void/callback\"";
@@ -40,6 +41,7 @@ namespace TeslaAuth
         readonly string UserAgent;
         readonly LoginInfo loginInfo;
         readonly HttpClient client;
+        readonly TeslaAccountRegion region;
 
         private string clientId;
         private string clientSecret;
@@ -48,13 +50,23 @@ namespace TeslaAuth
 
         #region Constructor and HttpClient initialisation
 
-        public TeslaAuthHelper(string userAgent, string clientId, string clientSecret, string redirectUri, string scopes, TeslaAccountRegion region = TeslaAccountRegion.Unknown)
+        /// <summary>
+        /// Constructs an instance of TeslaAuthHelper for use with the Tesla Fleet API. 
+        /// </summary>
+        /// <param name="region">The API region to use</param>
+        /// <param name="clientId">Client ID, as registered in the Tesla developer portal</param>
+        /// <param name="clientSecret">Client Secret, as registered in the Tesla developer portal</param>
+        /// <param name="redirectUri">URL to redirect to after authentication, as registered in the Tesla developer portal</param>
+        /// <param name="scopes">Authorization scopes requested. Use the Scopes helper class to construct</param>
+        /// <param name="userAgent">User agent string to use for server-side HTTP requests (can be null)</param>
+        public TeslaAuthHelper(TeslaAccountRegion region, string clientId, string clientSecret, string redirectUri, string scopes, string userAgent = null)
         {
             UserAgent = userAgent;
             this.clientId = clientId;
             this.clientSecret = clientSecret;
             this.redirectUri = redirectUri;
             this.scopes = scopes;
+            this.region = region;
 
             loginInfo = new LoginInfo
             {
@@ -64,8 +76,15 @@ namespace TeslaAuth
             client = CreateHttpClient(region);
         }
 
-        public TeslaAuthHelper(string userAgent, TeslaAccountRegion region = TeslaAccountRegion.Unknown) :  this(userAgent, TESLA_CLIENT_ID, TESLA_CLIENT_SECRET, TESLA_REDIRECT_URI, TESLA_SCOPES, region)
+        /// <summary>
+        /// Constructs an instance of TeslaAuthHelper for use with the Tesla Owner API. 
+        /// </summary>
+        /// <param name="userAgent">User agent string to use for server-side HTTP requests (can be null)</param>
+        /// <param name="region">The API region to use</param>
+        public TeslaAuthHelper(string userAgent, TeslaAccountRegion region = TeslaAccountRegion.Unknown) :  this(region, TESLA_CLIENT_ID, TESLA_CLIENT_SECRET, TESLA_REDIRECT_URI, TESLA_SCOPES, userAgent)
         {
+            // Note parameter order is different to the Fleet API constructor for compatibility with older versions. 
+            // This constructor will likely be removed if the Owner API becomes unavailable 
         }
 
         HttpClient CreateHttpClient(TeslaAccountRegion region)
@@ -87,7 +106,10 @@ namespace TeslaAuth
                     Accept = { new MediaTypeWithQualityHeaderValue("application/json") },
                 }
             };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+            if (UserAgent != null)
+            {
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+            }
 
             return client;
         }
@@ -135,9 +157,9 @@ namespace TeslaAuth
             var body = new JObject
             {
                 {"grant_type", "refresh_token"},
-                {"client_id", "ownerapi"},
+                {"client_id", clientId},
                 {"refresh_token", refreshToken},
-                {"scope", "openid email offline_access"}
+                {"scope", scopes}
             };
 
             using var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
@@ -178,7 +200,7 @@ namespace TeslaAuth
                 {"code_verifier", loginInfo.CodeVerifier},
                 {"redirect_uri", redirectUri},
                 { "scope", scopes },
-                { "audience", "https://fleet-api.prd.na.vn.cloud.tesla.com" }
+                { "audience", GetAudienceAdressForRegion(region) }
 
             //{"locale", "en-US" },
         };
@@ -221,6 +243,7 @@ namespace TeslaAuth
             {
                 case TeslaAccountRegion.Unknown:
                 case TeslaAccountRegion.USA:
+                case TeslaAccountRegion.Europe:
                     return "https://auth.tesla.com";
 
                 case TeslaAccountRegion.China:
@@ -228,6 +251,25 @@ namespace TeslaAuth
 
                 default:
                     throw new NotImplementedException("Fell threw switch in GetBaseAddressForRegion for " + region);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="region">The region that hosts the API that the tokens will be used for</param>
+        /// <returns>Address like "https://fleet-api.prd.na.vn.cloud.tesla.com", no trailing slash</returns>
+        static string GetAudienceAdressForRegion(TeslaAccountRegion region)
+        {
+            switch (region)
+            {
+                case TeslaAccountRegion.Unknown:
+                case TeslaAccountRegion.USA:
+                    return "https://fleet-api.prd.na.vn.cloud.tesla.com";
+                case TeslaAccountRegion.Europe:
+                    return "https://fleet-api.prd.eu.vn.cloud.tesla.com";
+                default:
+                    throw new NotImplementedException("Fell threw switch in GetAudienceAdressForRegion for " + region);
             }
         }
         #endregion Authentication helpers
