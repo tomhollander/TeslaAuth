@@ -250,7 +250,8 @@ namespace TeslaAuth
                     return "https://auth.tesla.cn";
 
                 default:
-                    throw new NotImplementedException("Fell threw switch in GetBaseAddressForRegion for " + region);
+                    throw new NotSupportedException("Region not supported: " + region);
+
             }
         }
 
