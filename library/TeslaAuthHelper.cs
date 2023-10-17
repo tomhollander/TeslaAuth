@@ -272,7 +272,8 @@ namespace TeslaAuth
                 case TeslaAccountRegion.China:
                     return String.Empty; // We don't know the Fleet API URL for China, and this is ignored for Owner API
                 default:
-                    throw new NotImplementedException("Fell threw switch in GetAudienceAdressForRegion for " + region);
+                    throw new NotSupportedException("Region not supported: " + region);
+
             }
         }
         #endregion Authentication helpers
