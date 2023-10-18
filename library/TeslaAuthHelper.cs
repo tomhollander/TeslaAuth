@@ -124,7 +124,7 @@ namespace TeslaAuth
             var b = new UriBuilder(client.BaseAddress + "oauth2/v3/authorize") { Port = -1 };
 
             var q = HttpUtility.ParseQueryString(b.Query);
-            q["client_id"] = clientId == TESLA_CLIENT_ID ? "owner_api" : clientId;
+            q["client_id"] = clientId == TESLA_CLIENT_ID ? "ownerapi" : clientId;
             q["code_challenge"] = loginInfo.CodeChallenge;
             q["code_challenge_method"] = "S256";
             q["redirect_uri"] = redirectUri;

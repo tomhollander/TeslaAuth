@@ -24,8 +24,19 @@ Requires using a WebView or similar integrated browser to show the Tesla login U
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <IncludeSource>True</IncludeSource>
     <Authors>Tom Hollander</Authors>
-    <PackageReleaseNotes>New version to support web based UI flow</PackageReleaseNotes>
+    <PackageReleaseNotes>Support for Fleet API.
+New sample apps</PackageReleaseNotes>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>TeslaAuth - Authentication library for Tesla API</Title>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />

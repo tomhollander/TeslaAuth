@@ -52,7 +52,7 @@ namespace UnitTests
             Assert.AreEqual("https", uri.Scheme);
             Assert.AreEqual("auth.tesla.com", uri.Host);
             Assert.AreEqual("/oauth2/v3/authorize", uri.AbsolutePath);
-            Assert.AreEqual("owner_api", q["client_id"]);
+            Assert.AreEqual("ownerapi", q["client_id"]);
             Assert.IsTrue( q["code_challenge"]?.Length > 0);
             Assert.AreEqual("S256", q["code_challenge_method"]);
             Assert.AreEqual("https://auth.tesla.com/void/callback", q["redirect_uri"]);
