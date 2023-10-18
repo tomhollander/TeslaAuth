@@ -56,7 +56,7 @@ The [Tesla Owner API](https://tesla-api.timdorr.com/) is the unofficial API that
 Anybody can use the API without registration, using a well-known Client ID coded into the TeslaAuth library. While this API is easiest
 to use, Tesla have announced it will stop working at some point in the future.
 
-To use the Owner API, you can initialise a `TeslaAuth` instance using only the `userAgent` parameter, ignoring the other parameters.
+To use the Owner API, you can initialise a `TeslaAuth` instance with the simple constructor (2 optional parameters).
 
 ## Fleet API Authentication
 
@@ -64,7 +64,8 @@ The [Fleet API](https://developer.tesla.com/docs/fleet-api) is Tesla's new, offi
 In order to use it, you need to first register for an account and then register an app to get a Client ID and other details.
 You must also complete additional onboarding steps as described at [developer.tesla.com](https://developer.tesla.com/).
 
-To use the Fleet API, you can initialise a `TeslaAuth` instance passing the `clientId`, `clientSecret`, `redirectUri` and `scope` parameters.
+To use the Fleet API, you can initialise a `TeslaAuth` instance passing the `region`, `clientId`, `clientSecret`, `redirectUri` and 
+`scope` parameters.
 The values you use must match the ones configured in the Tesla developer portal.
 
 ## Calling APIs

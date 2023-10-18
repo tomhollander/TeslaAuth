@@ -120,7 +120,7 @@ namespace Test.WPF
             }
             else
             {
-                apiUrl = "https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/me";
+                apiUrl = "https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/users/me";
             }
             var client = new HttpClient();
             try
