@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:Test.WPF"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d"
-        Title="TeslaAuth Sample" Height="450" Width="800">
+        Title="TeslaAuth Sample" Height="600" Width="1200">
     <Grid Margin="5">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="300" />
@@ -18,10 +18,30 @@
         </Grid.RowDefinitions>
         <TextBlock Grid.Row="0" Grid.Column="0" HorizontalAlignment="Center" FontWeight="Bold">TeslaAuth Sample</TextBlock>
         <StackPanel Grid.Row="1" Grid.Column="0">
+            <ComboBox x:Name="authModeCombo" SelectedIndex="0" SelectionChanged="authModeCombo_SelectionChanged">
+                <ComboBoxItem>Owner API</ComboBoxItem>
+                <ComboBoxItem>Fleet API</ComboBoxItem>
+            </ComboBox>
+            <StackPanel x:Name="fleetAPIControls" Visibility="Collapsed">
+                <TextBlock Margin="0,10,0,0">Client ID:</TextBlock>
+                <TextBox x:Name="clientIdTextBox"  />
+                <TextBlock Margin="0,10,0,0">Client Secret:</TextBlock>
+                <TextBox x:Name="clientSecretTextBox"  />
+                <TextBlock Margin="0,10,0,0">Redirect URI:</TextBlock>
+                <TextBox x:Name="redirectUriTextBox"  />
+                <TextBlock Margin="0,10,0,0">Scopes:</TextBlock>
+                <StackPanel Orientation="Horizontal">
+                    <CheckBox x:Name="userDataCheckBox">User Data</CheckBox>
+                    <CheckBox x:Name="vehicleDataCheckBox">Vehicle Data</CheckBox>
+                    <CheckBox x:Name="vehicleCommandsCheckBox">Vehicle Commands</CheckBox>
+                </StackPanel>
+            </StackPanel>
             <StackPanel Orientation="Horizontal">
                 <Button x:Name="loginButton" Click="loginButton_Click" Padding="5" Margin="5">Login</Button>
-                <Button x:Name="refreshButton" Click="refreshButton_Click" Padding="5" Margin="5">Refresh</Button>
+                <Button x:Name="refreshButton" Click="refreshButton_Click" Padding="5" Margin="5">Refresh Token</Button>
+                <Button x:Name="callApiButton" Click="callApiButton_Click" Padding="5" Margin="5">Call API</Button>
             </StackPanel>
+            <TextBlock FontWeight="Bold">Response</TextBlock>
             <TextBlock Margin="0,10,0,0">Access Token:</TextBlock>
             <TextBox x:Name="accessTokenTextBox" IsReadOnly="True" />
 
@@ -34,7 +54,8 @@
             <TextBlock Margin="0,10,0,0">Expires:</TextBlock>
             <TextBox x:Name="expiresTextBox" IsReadOnly="True" />
         </StackPanel>
-        <wv2:WebView2 x:Name="webView" Grid.Column="1" Grid.Row="1" Visibility="Hidden" NavigationStarting="webView_NavigationStarting"/>
+        <wv2:WebView2 x:Name="webView" Grid.Column="1" Grid.Row="1" NavigationStarting="webView_NavigationStarting"/>
+        <TextBox x:Name="apiResponseTextBlock"  Grid.Column="1" Grid.Row="1" TextWrapping="Wrap" IsReadOnly="True" Visibility="Collapsed" />
     </Grid>
 </Window>
 
