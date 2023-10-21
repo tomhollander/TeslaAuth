@@ -14,11 +14,10 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
-using Newtonsoft.Json.Linq;
 
 namespace TeslaAuth
 {
@@ -32,7 +31,7 @@ namespace TeslaAuth
     public class TeslaAuthHelper
     {
         // Constants for using the legacy Owner API. Fleet API users supply their own values
-        const string TESLA_CLIENT_ID = "81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384";
+        const string TESLA_CLIENT_ID = "ownerapi";
         const string TESLA_CLIENT_SECRET = "c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3";
         const string TESLA_REDIRECT_URI = "https://auth.tesla.com/void/callback";
         const string TESLA_SCOPES = "openid email offline_access";
@@ -124,7 +123,7 @@ namespace TeslaAuth
             var b = new UriBuilder(client.BaseAddress + "oauth2/v3/authorize") { Port = -1 };
 
             var q = HttpUtility.ParseQueryString(b.Query);
-            q["client_id"] = clientId == TESLA_CLIENT_ID ? "ownerapi" : clientId;
+            q["client_id"] = clientId;
             q["code_challenge"] = loginInfo.CodeChallenge;
             q["code_challenge_method"] = "S256";
             q["redirect_uri"] = redirectUri;
@@ -154,31 +153,29 @@ namespace TeslaAuth
         #region Public API for token refresh
         public async Task<Tokens> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
         {
-            var body = new JObject
+            var body = new JsonObject
             {
-                {"grant_type", "refresh_token"},
-                {"client_id", clientId},
-                {"refresh_token", refreshToken},
-                {"scope", scopes}
+                ["grant_type"] = "refresh_token",
+                ["client_id"] = clientId,
+                ["refresh_token"] = refreshToken,
+                ["scope"] = scopes
             };
 
-            using var content = new StringContent(body.ToString(), Encoding.UTF8, "application/json");
+            using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync("oauth2/v3/token", content, cancellationToken);
+            var resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode)
             {
-                throw new Exception(string.IsNullOrEmpty(result.ReasonPhrase) ? result.StatusCode.ToString() : result.ReasonPhrase);
+                throw new Exception($"{result.ReasonPhrase} : {resultContent}");
             }
+            var response = JsonNode.Parse(resultContent);
 
-            var resultContent = await result.Content.ReadAsStringAsync();
-            var response = JObject.Parse(resultContent);
-
-            // As of March 21 2022, this returns a bearer token.  No need to call ExchangeAccessTokenForBearerToken
             var tokens = new Tokens
             {
-                AccessToken = response["access_token"]!.Value<string>(),
-                RefreshToken = response["refresh_token"]!.Value<string>(),
-                ExpiresIn = TimeSpan.FromSeconds(response["expires_in"]!.Value<long>()),
-                TokenType = response["token_type"]!.Value<string>(),
+                AccessToken = response["access_token"]!.GetValue<string>(),
+                RefreshToken = response["refresh_token"]!.GetValue<string>(),
+                ExpiresIn = TimeSpan.FromSeconds(response["expires_in"]!.GetValue<long>()),
+                TokenType = response["token_type"]!.GetValue<string>(),
                 CreatedAt = DateTimeOffset.Now,
             };
             return tokens;
@@ -191,21 +188,19 @@ namespace TeslaAuth
 
         async Task<Tokens> ExchangeCodeForBearerTokenAsync(string code, HttpClient client, CancellationToken cancellationToken)
         {
-            var body = new JObject
+            var body = new JsonObject
             {
-                {"grant_type", "authorization_code"},
-                {"client_id", clientId == TESLA_CLIENT_ID ? "ownerapi" : clientId},
-                {"client_secret", clientSecret },
-                {"code", code},
-                {"code_verifier", loginInfo.CodeVerifier},
-                {"redirect_uri", redirectUri},
-                { "scope", scopes },
-                { "audience", GetAudienceAdressForRegion(region) }
-
-            //{"locale", "en-US" },
+                ["grant_type"] = "authorization_code",
+                ["client_id"] = clientId,
+                ["client_secret"] = clientSecret,
+                ["code"] = code,
+                ["code_verifier"] = loginInfo.CodeVerifier,
+                ["redirect_uri"] = redirectUri,
+                ["scope"] = scopes,
+                ["audience"] = GetAudienceAdressForRegion(region)
         };
 
-            using var content = new StringContent(body.ToString(Newtonsoft.Json.Formatting.None), Encoding.UTF8, "application/json");
+            using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content, cancellationToken);
             string resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode)
@@ -216,14 +211,14 @@ namespace TeslaAuth
                 throw new Exception(message);
             }
 
-            var response = JObject.Parse(resultContent);
+            var response = JsonNode.Parse(resultContent);
 
             var tokens = new Tokens
             {
-                AccessToken = response["access_token"]!.Value<string>(),
-                RefreshToken = response["refresh_token"]!.Value<string>(),
-                ExpiresIn = TimeSpan.FromSeconds(response["expires_in"]!.Value<long>()),
-                TokenType = response["token_type"]!.Value<string>(),
+                AccessToken = response["access_token"]!.GetValue<string>(),
+                RefreshToken = response["refresh_token"]!.GetValue<string>(),
+                ExpiresIn = TimeSpan.FromSeconds(response["expires_in"]!.GetValue<long>()),
+                TokenType = response["token_type"]!.GetValue<string>(),
                 CreatedAt = DateTimeOffset.Now,
             };
             return tokens;
