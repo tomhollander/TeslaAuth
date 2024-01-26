@@ -81,5 +81,27 @@ namespace UnitTests
             Assert.AreEqual(scopes, q["scope"]);
             Assert.AreEqual("code", q["response_type"]);
         }
+
+        [TestMethod]
+        public async Task ErrorsExtractedFromRedirectUrl()
+        {
+            var clientId = "MYCLIENT";
+            var clientSecret = "MYSECRET";
+            var redirectUrl = "MYURL://REDIRECT";
+            var scopes = "SCOPE1 SCOPE2";
+
+            var auth = new TeslaAuthHelper(TeslaAccountRegion.USA, clientId, clientSecret, redirectUrl, scopes);
+
+            var loginRedirectUrl = "MYURL://REDIRECT?error=login_cancelled&error_description=User%20cancelled%20login&state=iKz0zKUNddyE9Qpy1J6O";
+            try
+            {
+                await auth.GetTokenAfterLoginAsync(loginRedirectUrl);
+                Assert.Fail("Exception expected");
+            }
+            catch (InvalidOperationException ex)
+            {
+                Assert.AreEqual(ex.Message, "Login failed with error 'login_cancelled'\r\nUser cancelled login");
+            }
+        }
     }
 }
