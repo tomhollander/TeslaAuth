@@ -141,6 +141,14 @@ namespace TeslaAuth
             // URL is something like https://auth.tesla.com/void/callback?code=b6a6a44dea889eb08cd8afe5adc16353662cc5d82ba0c6044c95b13d6f…"
             var b = new UriBuilder(redirectUrl);
             var q = HttpUtility.ParseQueryString(b.Query);
+            var error = q["error"];
+
+            if (!String.IsNullOrEmpty(error))
+            {
+                var errorDescription = q["error_description"];
+                throw new InvalidOperationException($"Login failed with error '{error}'\r\n{errorDescription}");
+            }
+
             var code = q["code"];
 
             // As of March 21 2022, this returns a bearer token.  No need to call ExchangeAccessTokenForBearerToken
