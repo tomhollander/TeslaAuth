@@ -9,6 +9,7 @@ namespace TeslaAuth
     {
         Unknown,
         USA,
-        China
+        China,
+        Europe
     }
 }

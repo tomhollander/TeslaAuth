@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
@@ -6,9 +6,9 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <FileVersion>2.2.0</FileVersion>
-    <Version>2.2.0</Version>
-    <AssemblyVersion>2.2.0.0</AssemblyVersion>
+    <FileVersion>3.1.0</FileVersion>
+    <Version>3.1.0</Version>
+    <AssemblyVersion>3.0.1.0</AssemblyVersion>
     <PackageVersion>$(Version)</PackageVersion>
     <PackageId>TeslaAuth</PackageId>
     <Description>Fetch a Tesla bearer token for usage with the Tesla API.
@@ -24,10 +24,21 @@ Requires using a WebView or similar integrated browser to show the Tesla login U
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <IncludeSource>True</IncludeSource>
     <Authors>Tom Hollander</Authors>
-    <PackageReleaseNotes>New version to support web based UI flow</PackageReleaseNotes>
+    <PackageReleaseNotes>Replace Newtonsoft dependency with System.Text.Json
+Fix client id for refresh flow</PackageReleaseNotes>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>TeslaAuth - Authentication library for Tesla API</Title>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="7.0.3" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,28 @@
+﻿@page
+@model IndexModel
+@inject IConfiguration Configuration
+@using Microsoft.AspNetCore.Http.Extensions
+@{
+    ViewData["Title"] = "TeslaAuth Web Demo";
+}
+
+<div>
+    <p>To run this sample, configure your client settings in the <code>appsettings.json</code> file,
+        and ensure your Redirect Uri matches the one used by this app.</p>
+    <h4>Configured Values</h4>
+    <div>
+        Client ID: @Configuration.GetSection("TeslaAuth:ClientId").Value
+    </div>
+    <div>
+        Client Secret: @Configuration.GetSection("TeslaAuth:ClientSecret").Value
+    </div>
+    <div>
+        Redirect Uri: @(new Uri(new Uri(Request.GetEncodedUrl()), "/redirect").AbsoluteUri)
+    </div>
+    <div>
+        Authorization Scopes: @Configuration.GetSection("TeslaAuth:Scope").Value
+    </div>
+    <form method="post">
+        <input type="submit" value="Login" />
+    </form>
+</div>
