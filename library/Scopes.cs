@@ -10,9 +10,9 @@ namespace TeslaAuth
     public static class Scopes
     {
         public static string UserData = "user_data";
-        public static string VechicleDeviceData = "vehicle_device_data";
+        public static string VehicleDeviceData = "vehicle_device_data";
         public static string VehicleCommands = "vehicle_commands";
-        public static string VehicleChargingCommands = "vehicla_charging_commands";
+        public static string VehicleChargingCommands = "vehicle_charging_commands";
         public static string EnergyDeviceData = "energy_device_data";
         public static string EnergyCommands = "energy_cmds";
 
