@@ -44,7 +44,7 @@ namespace Test.WPF
             {
                 var scopesToInclude = new List<string>();
                 if (userDataCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.UserData); }
-                if (vehicleDataCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.VechicleDeviceData); }
+                if (vehicleDataCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.VehicleDeviceData); }
                 if (vehicleCommandsCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.VehicleCommands); }
                 teslaAuth = new TeslaAuthHelper(TeslaAccountRegion.USA, clientIdTextBox.Text, clientSecretTextBox.Text, redirectUriTextBox.Text, Scopes.BuildScopeString(scopesToInclude.ToArray()));
             }
