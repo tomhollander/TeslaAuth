@@ -188,6 +188,7 @@ namespace TeslaAuth
             {
                 throw new Exception($"{result.ReasonPhrase} : {resultContent}");
             }
+
             var response = JsonNode.Parse(resultContent);
 
             var tokens = new Tokens
@@ -217,7 +218,7 @@ namespace TeslaAuth
                 ["code_verifier"] = codeVerifier,
                 ["redirect_uri"] = redirectUri,
                 ["scope"] = scopes,
-                ["audience"] = GetAudienceAdressForRegion(region)
+                ["audience"] = GetAudienceAddressForRegion(region)
             };
 
             using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
@@ -266,7 +267,6 @@ namespace TeslaAuth
 
                 default:
                     throw new NotSupportedException("Region not supported: " + region);
-
             }
         }
 
@@ -275,7 +275,7 @@ namespace TeslaAuth
         /// </summary>
         /// <param name="region">The region that hosts the API that the tokens will be used for</param>
         /// <returns>Address like "https://fleet-api.prd.na.vn.cloud.tesla.com", no trailing slash</returns>
-        static string GetAudienceAdressForRegion(TeslaAccountRegion region)
+        static string GetAudienceAddressForRegion(TeslaAccountRegion region)
         {
             switch (region)
             {

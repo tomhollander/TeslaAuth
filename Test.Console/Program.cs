@@ -16,7 +16,7 @@ namespace Test.Console
             string clientId = Environment.GetEnvironmentVariable("TESLA_CLIENTID") ?? await RL("Client Id");
             string clientSecret = Environment.GetEnvironmentVariable("TESLA_CLIENTSECRET") ?? await RL("Client Secret");
             string redirectUri = Environment.GetEnvironmentVariable("TESLA_REDIRCETURI") ?? await RL("Redirect URL (from app registration)");
-            string scopes = Scopes.BuildScopeString(new[] { Scopes.UserData, Scopes.VechicleDeviceData }); // Edit if you want...
+            string scopes = Scopes.BuildScopeString(new[] { Scopes.UserData, Scopes.VehicleDeviceData }); // Edit if you want...
             var region = TeslaAccountRegion.Unknown;
 
             var auth = new TeslaAuthHelper(region, clientId, clientSecret, redirectUri, scopes);
