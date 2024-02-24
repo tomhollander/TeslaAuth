@@ -80,7 +80,7 @@ namespace TeslaAuth
         /// </summary>
         /// <param name="userAgent">User agent string to use for server-side HTTP requests (can be null)</param>
         /// <param name="region">The API region to use</param>
-        public TeslaAuthHelper(string userAgent = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown) :  this(region, TESLA_CLIENT_ID, TESLA_CLIENT_SECRET, TESLA_REDIRECT_URI, TESLA_SCOPES, userAgent)
+        public TeslaAuthHelper(string userAgent = null, TeslaAccountRegion region = TeslaAccountRegion.Unknown) : this(region, TESLA_CLIENT_ID, TESLA_CLIENT_SECRET, TESLA_REDIRECT_URI, TESLA_SCOPES, userAgent)
         {
             // Note parameter order is different to the Fleet API constructor for compatibility with older versions. 
             // This constructor will likely be removed if the Owner API becomes unavailable 
@@ -138,6 +138,18 @@ namespace TeslaAuth
 
         public async Task<Tokens> GetTokenAfterLoginAsync(string redirectUrl, CancellationToken cancellationToken = default)
         {
+            // Use the original code verifier from loginInfo - this assumes the same instance of TeslaAuthHelper is in use as was used when making the original request to the Tesla Auth.
+
+            return await GetTokenAfterLoginAsync(redirectUrl, loginInfo.CodeVerifier, cancellationToken);
+        }
+
+        public async Task<Tokens> GetTokenAfterLoginAsync(string redirectUrl, string codeVerifier, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(codeVerifier))
+            {
+                throw new ArgumentException("Must not be null or empty when using this overload", nameof(codeVerifier));
+            }
+
             // URL is something like https://auth.tesla.com/void/callback?code=b6a6a44dea889eb08cd8afe5adc16353662cc5d82ba0c6044c95b13d6f…"
             var b = new UriBuilder(redirectUrl);
             var q = HttpUtility.ParseQueryString(b.Query);
@@ -152,12 +164,12 @@ namespace TeslaAuth
             var code = q["code"];
 
             // As of March 21 2022, this returns a bearer token.  No need to call ExchangeAccessTokenForBearerToken
-            var tokens = await ExchangeCodeForBearerTokenAsync(code, client, cancellationToken);
+            var tokens = await ExchangeCodeForBearerTokenAsync(code, client, codeVerifier, cancellationToken);
             return tokens;
 
         }
         #endregion Public API for browser-assisted auth
-        
+
         #region Public API for token refresh
         public async Task<Tokens> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
         {
@@ -188,14 +200,14 @@ namespace TeslaAuth
                 CreatedAt = DateTimeOffset.Now,
             };
             return tokens;
- 
+
         }
         #endregion Public API for token refresh
 
         #region Authentication helpers
-        
 
-        async Task<Tokens> ExchangeCodeForBearerTokenAsync(string code, HttpClient client, CancellationToken cancellationToken)
+
+        async Task<Tokens> ExchangeCodeForBearerTokenAsync(string code, HttpClient client, string codeVerifier, CancellationToken cancellationToken)
         {
             var body = new JsonObject
             {
@@ -203,11 +215,11 @@ namespace TeslaAuth
                 ["client_id"] = clientId,
                 ["client_secret"] = clientSecret,
                 ["code"] = code,
-                ["code_verifier"] = loginInfo.CodeVerifier,
+                ["code_verifier"] = codeVerifier,
                 ["redirect_uri"] = redirectUri,
                 ["scope"] = scopes,
                 ["audience"] = GetAudienceAddressForRegion(region)
-        };
+            };
 
             using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
             using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content, cancellationToken);
@@ -233,7 +245,7 @@ namespace TeslaAuth
             return tokens;
         }
 
-       
+
 
         /// <summary>
         /// Should your Owner API token begin with "cn-" you should POST to auth.tesla.cn Tesla SSO service to have it refresh. Owner API tokens
@@ -311,7 +323,7 @@ namespace TeslaAuth
             // machine's default ANSI code page or the exact behavior of ASCIIEncoding.  Some people
             // are using UTF-8 but that may vary the length of the code verifier, perhaps inappropriately.
             byte[] bytes = new byte[s.Length];
-            for(int i = 0; i<s.Length; i++)
+            for (int i = 0; i < s.Length; i++)
                 bytes[i] = (byte)s[i];
             return bytes;
         }
@@ -349,6 +361,17 @@ namespace TeslaAuth
                 throw new Exception("Failed to create challenge for verifier");
             return challenge;
         }
+
+        public string GetCurrentCodeVerifier()
+        {
+            return loginInfo.CodeVerifier;
+        }
+
+        public string GetCurrentState()
+        {
+            return loginInfo.State;
+        }
+
         #endregion General Utilities
     }
 }
