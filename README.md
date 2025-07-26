@@ -2,7 +2,7 @@
 
 Helper library to authenticate to Tesla's API, enabling you to build apps that interact with Tesla's cars and energy products.
 
-Works with both the (soon to be deprecated) Owner API, as well as the new [Fleet API](https://developer.tesla.com/docs/fleet-api)
+Works with the new [Fleet API](https://developer.tesla.com/docs/fleet-api). Note that the Owner API is now deprecated. 
 
 This code was originally based on [Christian P](https://github.com/bassmaster187)'s
 work in the [TeslaLogger](https://github.com/bassmaster187/TeslaLogger) tool.
@@ -28,11 +28,11 @@ This repo includes three samples:
 2. A console app that launches the system browser to complete authentication - low tech but simple (should work across platforms)
 3. An ASP.NET Core app that demonstates web authentication (should work across platforms)
 
-The WPF sample can be used with both the Owner API and the Fleet API. For the latter you need to supply your own Fleet API keys.
-You can use any Redirect URL (doesn't even need to be real)
+The WPF sample can be used with the Fleet API; you need to supply your own Fleet API keys.
+You can use any Redirect URL (doesn't even need to be real, but it must match what you configured in the Tesla console)
 
-The console and web sample only works with the Fleet API, and you need to supply yout own Fleet API keys. You must use a Redirect
-Redirect URL that matches the one configured for your app. For the Console sammple it doesn't matter what this is, but for the web
+The console and web sample only works with the Fleet API, and you need to supply your own Fleet API keys. You must use a Redirect
+Redirect URL that matches the one configured for your app. For the Console sample it doesn't matter what this is, but for the web
 sample it must the sample website's host, port and path.
 
 ## Usage
@@ -50,14 +50,6 @@ building a website, implement the logic directly on the redirect URL
 6. This will return a `Tokens` object containing an Access and Refresh token
 7. When the token expires, call `authHelper.RefreshTokenAsync(...)` to get a new one without needing a complete login flow.
 
-## Owner API Authentication
-
-The [Tesla Owner API](https://tesla-api.timdorr.com/) is the unofficial API that has been used by third party Tesla apps until 2023.
-Anybody can use the API without registration, using a well-known Client ID coded into the TeslaAuth library. While this API is easiest
-to use, Tesla have announced it will stop working at some point in the future.
-
-To use the Owner API, you can initialise a `TeslaAuth` instance with the simple constructor (2 optional parameters).
-
 ## Fleet API Authentication
 
 The [Fleet API](https://developer.tesla.com/docs/fleet-api) is Tesla's new, officially supported API for third party developers.
@@ -69,7 +61,7 @@ To use the Fleet API, you can initialise a `TeslaAuth` instance passing the `reg
 The values you use must match the ones configured in the Tesla developer portal.
 
 ## Calling APIs
-Once you have obtained a token from TeslaAuth, you can pass it to the Tesla Owner or Fleet API as a Bearer token in the `Authorization`
+Once you have obtained a token from TeslaAuth, you can pass it to the Fleet API as a Bearer token in the `Authorization`
 header. This library does not assist with calling the Tesla APIs; it's only for authentication.
 
 ## Contributions

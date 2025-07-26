@@ -56,7 +56,7 @@ namespace Test.Console
         {
             try
             {
-                
+                // Note an exception here may be expected, if it breaks in the debugger let it continue into the catch block
                 Process.Start(url);
             }
             catch

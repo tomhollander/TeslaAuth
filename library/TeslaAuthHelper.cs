@@ -36,6 +36,8 @@ namespace TeslaAuth
         const string TESLA_REDIRECT_URI = "https://auth.tesla.com/void/callback";
         const string TESLA_SCOPES = "openid email offline_access";
 
+        const string TOKEN_EXCHANGE_BASE_URL = "https://fleet-auth.prd.vn.cloud.tesla.com/";
+
         static readonly Random Random = new Random();
         readonly string UserAgent;
         readonly LoginInfo loginInfo;
@@ -182,7 +184,7 @@ namespace TeslaAuth
             };
 
             using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
-            using var result = await client.PostAsync("oauth2/v3/token", content, cancellationToken);
+            using var result = await client.PostAsync(TOKEN_EXCHANGE_BASE_URL + "oauth2/v3/token", content, cancellationToken);
             var resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode)
             {
@@ -222,7 +224,7 @@ namespace TeslaAuth
             };
 
             using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
-            using var result = await client.PostAsync(client.BaseAddress + "oauth2/v3/token", content, cancellationToken);
+            using var result = await client.PostAsync(TOKEN_EXCHANGE_BASE_URL + "oauth2/v3/token", content, cancellationToken);
             string resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode)
             {

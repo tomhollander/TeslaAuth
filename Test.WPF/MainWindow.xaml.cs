@@ -36,19 +36,13 @@ namespace Test.WPF
         private async void loginButton_Click(object sender, RoutedEventArgs e)
         {
 
-            if (authModeCombo.SelectedIndex == 0)
-            {
-                teslaAuth = new TeslaAuthHelper("TeslaAuth/1.0");
-            }
-            else
-            {
-                var scopesToInclude = new List<string>();
-                if (userDataCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.UserData); }
-                if (vehicleDataCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.VehicleDeviceData); }
-                if (vehicleCommandsCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.VehicleCommands); }
-                teslaAuth = new TeslaAuthHelper(TeslaAccountRegion.USA, clientIdTextBox.Text, clientSecretTextBox.Text, redirectUriTextBox.Text, Scopes.BuildScopeString(scopesToInclude.ToArray()));
-            }
 
+            var scopesToInclude = new List<string>();
+            if (userDataCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.UserData); }
+            if (vehicleDataCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.VehicleDeviceData); }
+            if (vehicleCommandsCheckBox.IsChecked.Value) { scopesToInclude.Add(Scopes.VehicleCommands); }
+            teslaAuth = new TeslaAuthHelper(TeslaAccountRegion.USA, clientIdTextBox.Text, clientSecretTextBox.Text, redirectUriTextBox.Text, Scopes.BuildScopeString(scopesToInclude.ToArray()));
+      
             await webView.EnsureCoreWebView2Async();
             webView.CoreWebView2.CookieManager.DeleteAllCookies();
             webView.Source = new Uri(teslaAuth.GetLoginUrlForBrowser());
@@ -102,26 +96,11 @@ namespace Test.WPF
             }));
         }
 
-        private void authModeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (fleetAPIControls != null)
-            {
-                fleetAPIControls.Visibility = (authModeCombo.SelectedIndex == 0) ? Visibility.Collapsed : Visibility.Visible;
-            }
-            
-        }
 
         private async void callApiButton_Click(object sender, RoutedEventArgs e)
         {
-            string apiUrl;
-            if (authModeCombo.SelectedIndex == 0)
-            {
-                apiUrl = "https://owner-api.teslamotors.com/api/1/products";
-            }
-            else
-            {
-                apiUrl = "https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/users/region";
-            }
+            string apiUrl = "https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/products";
+            
             var client = new HttpClient();
             try
             {
@@ -129,7 +108,6 @@ namespace Test.WPF
                 var request = new HttpRequestMessage(HttpMethod.Get, apiUrl);
                 request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
                 var response = await client.SendAsync(request);
-                response.EnsureSuccessStatusCode();
                 apiResponseTextBlock.Text = await response.Content.ReadAsStringAsync();
             }
             catch (Exception ex)

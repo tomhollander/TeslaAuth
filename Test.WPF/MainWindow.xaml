@@ -18,11 +18,7 @@
         </Grid.RowDefinitions>
         <TextBlock Grid.Row="0" Grid.Column="0" HorizontalAlignment="Center" FontWeight="Bold">TeslaAuth Sample</TextBlock>
         <StackPanel Grid.Row="1" Grid.Column="0">
-            <ComboBox x:Name="authModeCombo" SelectedIndex="0" SelectionChanged="authModeCombo_SelectionChanged">
-                <ComboBoxItem>Owner API</ComboBoxItem>
-                <ComboBoxItem>Fleet API</ComboBoxItem>
-            </ComboBox>
-            <StackPanel x:Name="fleetAPIControls" Visibility="Collapsed">
+            <StackPanel x:Name="fleetAPIControls">
                 <TextBlock Margin="0,10,0,0">Client ID:</TextBlock>
                 <TextBox x:Name="clientIdTextBox"  />
                 <TextBlock Margin="0,10,0,0">Client Secret:</TextBlock>
